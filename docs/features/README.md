@@ -26,8 +26,9 @@
 | F002 | 设备管理 | ✅ 完成 | 0.1.0 | [查看](./F002-device-management.md) |
 | F003 | 团队角色 | ✅ 完成 | 0.1.0 | [查看](./F003-team-roles.md) |
 | F007 | 角色技能 | ✅ 完成 | 0.1.0 | [查看](./F007-role-agent-skills.md) |
-| F008 | 角色分配 | ✅ 完成 | 0.1.0 | [查看](./F008-device-role-assignment.md) |
-| F009 | 团队协作拓扑图 | ✅ 完成 | 0.1.0 | [查看](./F009-team-topology.md) |
+| F008 | 设备角色与技能分配 | ✅ 完成 | [查看文档](./F008-device-role-assignment.md) |
+| F009 | 团队协作拓扑图 | ✅ 完成 | [查看文档](./F009-team-topology.md) |
+| F010 | 设备端工作台 (HUD) | ✅ 完成 | [查看文档](./F010-device-hud.md) |
 
 ### 仪表盘 (F200-F299)
 
