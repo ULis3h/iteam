@@ -1,0 +1,114 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String   // bcrypt hashed
+  avatar    String?  // 头像URL
+  role      String   @default("user") // user, admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// 设备模型
+model Device {
+  id            String   @id @default(uuid())
+  name          String
+  type          String   // vscode, windsurf, antigravity, claude-code, other
+  role          String?  // 团队角色: frontend, backend, fullstack, devops, qa, architect, pm, designer
+  status        String   @default("offline") // online, offline, idle, working
+  os            String
+  ip            String
+  currentProject String?
+  currentModule  String?
+  metadata      String?  // JSON string for additional info
+  lastSeen      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  contributions Contribution[]
+  tasks         Task[]
+
+  @@map("devices")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  repository  String
+  status      String   @default("active") // active, paused, completed
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  contributions Contribution[]
+  tasks         Task[]
+
+  @@map("projects")
+}
+
+model Contribution {
+  id           String   @id @default(uuid())
+  deviceId     String
+  projectId    String
+  commits      Int      @default(0)
+  linesAdded   Int      @default(0)
+  linesDeleted Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, projectId])
+  @@map("contributions")
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  deviceId    String
+  projectId   String
+  module      String
+  description String
+  status      String   @default("active") // active, completed, paused
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("tasks")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  category  String   // standard, tech, bug, other
+  tags      String   // JSON array string
+  author    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("documents")
+}
