@@ -56,6 +56,8 @@ router.post('/', async (req, res) => {
         name: req.body.name,
         type: req.body.type,
         role: req.body.role,
+        skills: req.body.skills ? JSON.stringify(req.body.skills) : null,
+        documentIds: req.body.documentIds ? JSON.stringify(req.body.documentIds) : null,
         os: req.body.os,
         ip: req.body.ip,
         metadata: req.body.metadata ? JSON.stringify(req.body.metadata) : null,
@@ -76,6 +78,8 @@ router.put('/:id', async (req, res) => {
         name: req.body.name,
         type: req.body.type,
         role: req.body.role,
+        skills: req.body.skills ? JSON.stringify(req.body.skills) : undefined,
+        documentIds: req.body.documentIds ? JSON.stringify(req.body.documentIds) : undefined,
         os: req.body.os,
         ip: req.body.ip,
         status: req.body.status,
@@ -90,6 +94,7 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update device' })
   }
 })
+
 
 // Delete device
 router.delete('/:id', async (req, res) => {

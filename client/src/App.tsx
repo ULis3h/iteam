@@ -8,6 +8,8 @@ import Documents from './pages/Documents'
 import Test from './pages/Test'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Topology from './pages/Topology';
+import DeviceHUD from './pages/DeviceHUD';
 import Layout from './components/Layout'
 
 function App() {
@@ -30,6 +32,8 @@ function App() {
                     <Route path="/devices" element={<Devices />} />
                     <Route path="/projects" element={<Projects />} />
                     <Route path="/documents" element={<Documents />} />
+                    <Route path="/topology" element={<Topology />} />
+                    <Route path="/device/:id/hud" element={<DeviceHUD />} />
                     <Route path="/test" element={<Test />} />
                   </Routes>
                 </Layout>

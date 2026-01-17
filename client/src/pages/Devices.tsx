@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Monitor, Plus, MoreVertical, X, Cpu, HardDrive, MemoryStick, Activity, Gauge, Info } from 'lucide-react'
 import type { Device } from '../types'
 import { OSIcon } from '../components/OSIcon'
+import DeviceEditModal from '../components/DeviceEditModal'
 import { getAuthHeaders } from '../contexts/AuthContext'
 
 // 设备详情接口，扩展 metadata
@@ -228,6 +229,7 @@ export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [detailDevice, setDetailDevice] = useState<DeviceDetails | null>(null)
+  const [editDevice, setEditDevice] = useState<Device | null>(null)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
   useEffect(() => {
@@ -315,6 +317,48 @@ export default function Devices() {
       setIsLoadingDetails(false)
     }
   }
+
+  const handleEditDevice = (device: Device) => {
+    // Parse skills and documentIds if they are JSON strings
+    const deviceToEdit = { ...device };
+    if (typeof deviceToEdit.skills === 'string') {
+      try { deviceToEdit.skills = JSON.parse(deviceToEdit.skills); } catch { }
+    }
+    if (typeof deviceToEdit.documentIds === 'string') {
+      try { deviceToEdit.documentIds = JSON.parse(deviceToEdit.documentIds); } catch { }
+    }
+    setEditDevice(deviceToEdit);
+    setOpenMenuId(null);
+  };
+
+  const handleSaveDevice = async (updatedFields: Partial<Device>) => {
+    if (!editDevice) return;
+
+    try {
+      const response = await fetch(`http://localhost:3000/api/devices/${editDevice.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(updatedFields),
+      });
+
+      if (!response.ok) throw new Error('Failed to update device');
+
+      const updatedDevice = await response.json();
+
+      setDevices(prev => prev.map(d =>
+        d.id === updatedDevice.id
+          ? { ...updatedDevice, lastSeen: new Date(updatedDevice.lastSeen), createdAt: new Date(updatedDevice.createdAt) }
+          : d
+      ));
+      setEditDevice(null);
+    } catch (error) {
+      console.error('Update error:', error);
+      alert('更新设备失败');
+    }
+  };
 
   const getStatusColor = (status: Device['status']) => {
     switch (status) {
@@ -528,10 +572,13 @@ export default function Devices() {
                           详情
                         </button>
                         <button
-                          onClick={() => {
-                            console.log('Edit', device.id)
-                            setOpenMenuId(null)
-                          }}
+                          onClick={() => window.open(`/device/${device.id}/hud`, '_blank')}
+                          className="block w-full text-left px-4 py-2 text-sm text-cyan-600 dark:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+                        >
+                          工作台
+                        </button>
+                        <button
+                          onClick={() => handleEditDevice(device)}
                           className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
                           编辑
@@ -557,6 +604,15 @@ export default function Devices() {
         <DeviceDetailModal
           device={detailDevice}
           onClose={() => setDetailDevice(null)}
+        />
+      )}
+
+      {/* 编辑设备模态框 */}
+      {editDevice && (
+        <DeviceEditModal
+          device={editDevice}
+          onClose={() => setEditDevice(null)}
+          onSave={handleSaveDevice}
         />
       )}
 

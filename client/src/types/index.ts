@@ -24,6 +24,8 @@ export interface Device {
   name: string
   type: 'vscode' | 'windsurf' | 'antigravity' | 'claude-code' | 'other'
   role?: DeviceRole
+  skills?: string[]
+  documentIds?: string[]
   status: 'online' | 'offline' | 'idle' | 'working'
   os: string
   ip: string
@@ -35,6 +37,7 @@ export interface Device {
     cpu?: string
     memory?: string
     version?: string
+    [key: string]: any
   }
 }
 

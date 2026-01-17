@@ -7,7 +7,8 @@ import {
   FileText,
   Sparkles,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Network
 } from 'lucide-react'
 import TeamLogo from './TeamLogo'
 import { useAuth } from '../contexts/AuthContext'
@@ -32,6 +33,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: '设备管理', href: '/devices', icon: Monitor, gradient: 'from-green-400 to-cyan-500' },
     { name: '项目管理', href: '/projects', icon: FolderGit2, gradient: 'from-orange-400 to-pink-500' },
     { name: '文档中心', href: '/documents', icon: FileText, gradient: 'from-purple-400 to-indigo-500' },
+    { name: '团队拓扑', href: '/topology', icon: Network, gradient: 'from-cyan-400 to-blue-500' },
   ]
 
   const isActive = (href: string) => location.pathname === href
