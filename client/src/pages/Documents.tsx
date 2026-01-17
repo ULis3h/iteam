@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, Plus, Search, Tag, Calendar, Book, Bug, Code, FileCode } from 'lucide-react'
+import { FileText, Plus, Search, Tag, Calendar, Book, Bug, Code, FileCode, Users } from 'lucide-react'
 import Card from '../components/Card'
 import type { Document } from '../types'
 import { getAuthHeaders } from '../contexts/AuthContext'
@@ -30,6 +30,7 @@ export default function Documents() {
     { id: 'standard', label: '开发规范', icon: Code, gradient: 'from-blue-400 to-blue-600' },
     { id: 'tech', label: '技术积累', icon: FileCode, gradient: 'from-purple-400 to-purple-600' },
     { id: 'bug', label: 'Bug修复', icon: Bug, gradient: 'from-red-400 to-red-600' },
+    { id: 'role-skill', label: 'Agent技能', icon: Users, gradient: 'from-orange-400 to-orange-600' },
     { id: 'other', label: '其他', icon: FileText, gradient: 'from-green-400 to-green-600' },
   ]
 

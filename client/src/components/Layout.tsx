@@ -119,6 +119,22 @@ export default function Layout({ children }: LayoutProps) {
 
             {/* 右侧状态 */}
             <div className="flex items-center space-x-4">
+              {/* 系统状态 */}
+              <div className="hidden md:flex items-center space-x-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
+                <div className="relative">
+                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full animate-ping absolute" />
+                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full relative" />
+                </div>
+                <span className="text-sm font-medium text-white/90">
+                  系统运行中
+                </span>
+              </div>
+
+              {/* 装饰性元素 */}
+              <div className="hidden lg:block">
+                <Sparkles className="h-5 w-5 text-yellow-300 animate-pulse" />
+              </div>
+
               {/* 用户信息 */}
               <div className="relative">
                 <button
@@ -150,22 +166,6 @@ export default function Layout({ children }: LayoutProps) {
                     </button>
                   </div>
                 )}
-              </div>
-
-              {/* 系统状态 */}
-              <div className="hidden md:flex items-center space-x-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
-                <div className="relative">
-                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full animate-ping absolute" />
-                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full relative" />
-                </div>
-                <span className="text-sm font-medium text-white/90">
-                  系统运行中
-                </span>
-              </div>
-
-              {/* 装饰性元素 */}
-              <div className="hidden lg:block">
-                <Sparkles className="h-5 w-5 text-yellow-300 animate-pulse" />
               </div>
             </div>
           </div>

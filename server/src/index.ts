@@ -5,12 +5,14 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import logger from './utils/logger.js'
+import { syncRoleDocuments } from './utils/syncRoleDocs.js'
 import { setupWebSocket } from './websocket/index.js'
 import authRoutes from './routes/auth.js'
 import deviceRoutes from './routes/devices.js'
 import projectRoutes from './routes/projects.js'
 import documentRoutes from './routes/documents.js'
 import statsRoutes from './routes/stats.js'
+import rolesRoutes from './routes/roles.js'
 import { authMiddleware } from './middleware/auth.js'
 
 // Load environment variables
@@ -46,6 +48,7 @@ app.use((req, res, next) => {
 // API Routes
 // 公开路由 - 无需认证
 app.use('/api/auth', authRoutes)
+app.use('/api/roles', rolesRoutes)
 
 // 设备心跳路由 - 使用 API Key 或用户认证
 // 支持设备 Agent 使用 X-API-Key 头进行认证
@@ -84,9 +87,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Start server
 const PORT = process.env.PORT || 3000
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, async () => {
   logger.info(`Server running on port ${PORT}`)
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`)
+
+  // 同步角色技能文档到文档中心
+  await syncRoleDocuments(prisma)
 })
 
 // Graceful shutdown

@@ -38,6 +38,32 @@ export interface Device {
   }
 }
 
+// 贡献类型
+export interface Contribution {
+  id: string
+  deviceId: string
+  projectId: string
+  commits: number
+  linesAdded: number
+  linesDeleted: number
+  createdAt: Date
+  updatedAt: Date
+  device?: Device
+}
+
+// 任务类型
+export interface Task {
+  id: string
+  deviceId: string
+  projectId: string
+  module: string
+  description: string
+  status: 'active' | 'completed' | 'paused'
+  createdAt: Date
+  updatedAt: Date
+  device?: Device
+}
+
 // 项目类型
 export interface Project {
   id: string
@@ -47,19 +73,10 @@ export interface Project {
   status: 'active' | 'paused' | 'completed'
   startDate: Date
   endDate?: Date
-  contributors: {
-    deviceId: string
-    commits: number
-    linesAdded: number
-    linesDeleted: number
-  }[]
-  currentTasks: {
-    deviceId: string
-    module: string
-    description: string
-  }[]
   createdAt: Date
   updatedAt: Date
+  contributions: Contribution[]
+  tasks: Task[]
 }
 
 // 文档类型
@@ -67,7 +84,7 @@ export interface Document {
   id: string
   title: string
   content: string
-  category: 'standard' | 'tech' | 'bug' | 'other'
+  category: 'standard' | 'tech' | 'bug' | 'role-skill' | 'other'
   tags: string[]
   author: string
   createdAt: Date

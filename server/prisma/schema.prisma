@@ -27,9 +27,11 @@ model User {
 // 设备模型
 model Device {
   id            String   @id @default(uuid())
-  name          String
+  name          String   @unique
   type          String   // vscode, windsurf, antigravity, claude-code, other
   role          String?  // 团队角色: frontend, backend, fullstack, devops, qa, architect, pm, designer
+  skills        String?  // JSON数组: 分配的技能列表
+  documentIds   String?  // JSON数组: 关联的文档ID列表
   status        String   @default("offline") // online, offline, idle, working
   os            String
   ip            String
