@@ -79,6 +79,14 @@ iteam/
 │   ├── prisma/            # Database schema
 │   └── package.json
 │
+├── agent-client/           # AI Agent Desktop Client ⭐ NEW
+│   ├── src/
+│   │   ├── main/          # Electron main process
+│   │   ├── renderer/      # UI and rendering
+│   │   ├── preload/       # IPC bridge
+│   │   └── services/      # WebSocket & Claude Code integration
+│   └── package.json
+│
 ├── docs/                   # Project documentation
 │   ├── features/          # Feature specifications
 │   ├── api/               # API documentation
@@ -120,7 +128,24 @@ cd server && npm run dev
 cd client && npm run dev
 ```
 
-### Simulate Devices
+### AI Agent Client (Recommended)
+
+Start the intelligent agent client with Claude Code integration:
+
+```bash
+# Install dependencies (first time only)
+cd agent-client && npm install
+
+# Start the agent client
+./start-agent.sh
+
+# Or in development mode
+npm run dev
+```
+
+See [Agent Client Documentation](./agent-client/README.md) for detailed setup.
+
+### Simulate Devices (Alternative)
 
 ```bash
 # Run the device simulation script
@@ -131,6 +156,10 @@ cd client && npm run dev
 
 Full documentation is available in the `/docs` directory:
 
+- [System Architecture](./ARCHITECTURE.md) ⭐ **必读** - 系统架构和组件说明
+- [Server Documentation](./server/README.md) - 后端服务器完整文档
+- [Agent Client Guide](./agent-client/README.md) - Agent客户端使用指南
+- [Agent Quick Start](./agent-client/QUICKSTART.md) - Agent快速开始
 - [Project Overview](./docs/overview/README.md)
 - [Feature Specifications](./docs/features/README.md)
 - [API Reference](./docs/api/README.md)
@@ -146,6 +175,7 @@ Full documentation is available in the `/docs` directory:
 - [x] Device details modal (hardware info)
 - [x] API Key authentication for devices
 - [x] Project documentation
+- [x] AI Agent Desktop Client with Claude Code integration ⭐ NEW
 - [ ] Full project management UI
 - [ ] Markdown document editor
 - [ ] Real-time notifications

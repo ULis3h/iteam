@@ -29,12 +29,18 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
       metadata?: any
     }) => {
       try {
+        // 从metadata中提取role和skills
+        const role = data.metadata?.role || null
+        const skills = data.metadata?.skills ? JSON.stringify(data.metadata.skills) : null
+
         const device = await prisma.device.upsert({
           where: { name: data.name },
           update: {
             status: 'online',
             lastSeen: new Date(),
             ip: data.ip,
+            role: role,
+            skills: skills,
           },
           create: {
             name: data.name,
@@ -42,6 +48,8 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
             os: data.os,
             ip: data.ip,
             status: 'online',
+            role: role,
+            skills: skills,
             metadata: data.metadata ? JSON.stringify(data.metadata) : null,
           },
         })

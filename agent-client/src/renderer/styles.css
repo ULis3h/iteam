@@ -1,0 +1,390 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #0f0f1e;
+  color: #e0e0e0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* 标题栏 */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-bottom: 1px solid #2a2a4e;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.app-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #64ffda;
+}
+
+.app-version {
+  font-size: 12px;
+  color: #888;
+  background: #2a2a4e;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-indicator.online {
+  background: #00ff88;
+  box-shadow: 0 0 10px #00ff88;
+}
+
+.status-indicator.offline {
+  background: #888;
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 主容器 */
+.main-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 侧边栏 */
+.sidebar {
+  width: 350px;
+  background: #16213e;
+  border-right: 1px solid #2a2a4e;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.config-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: rgba(26, 26, 46, 0.5);
+  border-radius: 8px;
+  border: 1px solid #2a2a4e;
+}
+
+.config-section h2 {
+  font-size: 16px;
+  color: #64ffda;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  background: #0f0f1e;
+  border: 1px solid #2a2a4e;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #64ffda;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: #888;
+}
+
+.btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #64ffda 0%, #00d4aa 100%);
+  color: #0f0f1e;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(100, 255, 218, 0.3);
+}
+
+.btn-secondary {
+  background: #2a2a4e;
+  color: #e0e0e0;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #3a3a5e;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px;
+  background: #0f0f1e;
+  border-radius: 4px;
+}
+
+.status-label {
+  color: #aaa;
+  font-size: 13px;
+}
+
+.status-value {
+  color: #64ffda;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+/* 主内容区 */
+.content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.content-section {
+  background: rgba(26, 26, 46, 0.5);
+  border-radius: 8px;
+  border: 1px solid #2a2a4e;
+  padding: 20px;
+}
+
+.content-section h2 {
+  font-size: 16px;
+  color: #64ffda;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+/* 任务列表 */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+
+.empty-state p {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.empty-state small {
+  font-size: 12px;
+}
+
+.task-item {
+  padding: 15px;
+  background: #0f0f1e;
+  border-radius: 6px;
+  border-left: 3px solid #64ffda;
+  transition: all 0.3s ease;
+}
+
+.task-item:hover {
+  transform: translateX(5px);
+  background: #1a1a2e;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.task-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e0e0e0;
+}
+
+.task-status {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: #2a2a4e;
+}
+
+.task-status.pending {
+  background: #ffa726;
+  color: #0f0f1e;
+}
+
+.task-status.running {
+  background: #64ffda;
+  color: #0f0f1e;
+}
+
+.task-status.completed {
+  background: #00ff88;
+  color: #0f0f1e;
+}
+
+.task-status.failed {
+  background: #ff5252;
+  color: #fff;
+}
+
+.task-description {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 10px;
+}
+
+.task-meta {
+  display: flex;
+  gap: 15px;
+  font-size: 11px;
+  color: #888;
+}
+
+/* 日志终端 */
+.log-terminal {
+  background: #0f0f1e;
+  border-radius: 6px;
+  padding: 15px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  height: 300px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.log-entry {
+  margin-bottom: 5px;
+  display: flex;
+  gap: 10px;
+}
+
+.log-time {
+  color: #888;
+}
+
+.log-level {
+  font-weight: 600;
+  min-width: 50px;
+}
+
+.log-level.info {
+  color: #64ffda;
+}
+
+.log-level.success {
+  color: #00ff88;
+}
+
+.log-level.warning {
+  color: #ffa726;
+}
+
+.log-level.error {
+  color: #ff5252;
+}
+
+.log-message {
+  color: #e0e0e0;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f0f1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a4e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a5e;
+}
