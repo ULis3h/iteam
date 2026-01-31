@@ -14,6 +14,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    icon: path.join(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -24,6 +25,11 @@ function createWindow() {
     titleBarStyle: 'default',
     backgroundColor: '#1a1a2e'
   });
+
+  // macOS: 设置 Dock 图标
+  if (process.platform === 'darwin' && app.dock) {
+    app.dock.setIcon(path.join(__dirname, '../../build/icon.png'));
+  }
 
   // 加载应用
   mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
@@ -236,6 +242,11 @@ ipcMain.handle('disconnect-from-server', async () => {
 // 更新Agent配置
 ipcMain.handle('update-agent-config', async (event, config) => {
   agentConfig = config;
+
+  // 通知 socket 服务更新配置
+  socketService.updateAgentConfig(config);
+
+  sendLog('info', `AI配置已更新: ${config.aiProvider}/${config.aiModel}`);
   return { success: true };
 });
 

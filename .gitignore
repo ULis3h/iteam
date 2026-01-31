@@ -48,4 +48,6 @@ prisma/migrations/
 
 # Agent/AI tools
 .agent/
+.claude/
+.VSCodeCounter/
 

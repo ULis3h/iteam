@@ -38,7 +38,7 @@ class ClaudeService {
         return;
       }
 
-      // 构建Claude Code命令
+      // 构建Claude Code命令 - 传递agentConfig
       const claudeCommand = this.buildClaudeCommand(task, agentConfig);
 
       this.emit('started', {
@@ -142,8 +142,14 @@ class ClaudeService {
   }
 
   // 构建Claude Code命令
-  buildClaudeCommand(task) {
+  buildClaudeCommand(task, agentConfig = {}) {
     const args = [];
+
+    // 添加模型配置
+    if (agentConfig.aiModel) {
+      args.push('--model');
+      args.push(agentConfig.aiModel);
+    }
 
     // 根据任务类型构建不同的命令
     switch (task.type) {

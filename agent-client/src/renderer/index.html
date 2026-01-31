@@ -1,168 +1,220 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: http: https:">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: http: https:">
   <title>iTeam Agent Client</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-  <div id="app">
-    <!-- 标题栏 -->
-    <header class="app-header">
-      <div class="header-left">
-        <h1 class="app-title">🤖 iTeam Agent</h1>
-        <span class="app-version" id="app-version">v0.1.0</span>
-      </div>
-      <div class="header-right">
-        <span class="connection-status" id="connection-status">
-          <span class="status-indicator offline"></span>
-          <span class="status-text">未连接</span>
-        </span>
-      </div>
-    </header>
-
-    <!-- 主内容区 -->
-    <div class="main-container">
-      <!-- 左侧面板：配置和状态 -->
-      <aside class="sidebar">
-        <!-- 连接配置 -->
-        <section class="config-section">
-          <h2>服务器连接</h2>
-          <div class="form-group">
-            <label for="server-url">服务器地址</label>
-            <input type="text" id="server-url" placeholder="http://localhost:3000" value="http://localhost:3000">
-          </div>
-          <div class="form-group">
-            <label for="api-key">API Key</label>
-            <input type="password" id="api-key" placeholder="iteam-device-key" value="iteam-device-key">
-          </div>
-          <button id="connect-btn" class="btn btn-primary">连接服务器</button>
-          <button id="disconnect-btn" class="btn btn-secondary" disabled>断开连接</button>
-        </section>
-
-        <!-- Agent配置 -->
-        <section class="config-section">
-          <h2>Agent配置</h2>
-          <div class="form-group">
-            <label for="agent-name">设备名称</label>
-            <input type="text" id="agent-name" placeholder="我的工作设备">
-          </div>
-          <div class="form-group">
-            <label for="agent-role">角色</label>
-            <select id="agent-role">
-              <option value="">请选择角色</option>
-              <option value="frontend">Frontend Developer</option>
-              <option value="backend">Backend Developer</option>
-              <option value="fullstack">Full Stack Developer</option>
-              <option value="devops">DevOps Engineer</option>
-              <option value="qa">QA Engineer</option>
-              <option value="designer">UI/UX Designer</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="agent-skills">技能标签</label>
-            <input type="text" id="agent-skills" placeholder="react,nodejs,docker">
-            <small>用逗号分隔多个技能</small>
-          </div>
-        </section>
-
-        <!-- AI模型配置 -->
-        <section class="config-section">
-          <h2>AI模型配置</h2>
-          <div class="form-group">
-            <label for="ai-provider">AI提供商</label>
-            <select id="ai-provider">
-              <option value="anthropic">Anthropic (Claude)</option>
-              <option value="openai">OpenAI (GPT)</option>
-              <option value="custom">自定义</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="ai-model">模型</label>
-            <select id="ai-model">
-              <!-- Anthropic模型 -->
-              <optgroup label="Claude模型" id="claude-models">
-                <option value="claude-opus-4-5">Claude Opus 4.5 (最强)</option>
-                <option value="claude-sonnet-4-5" selected>Claude Sonnet 4.5 (推荐)</option>
-                <option value="claude-sonnet-3.5">Claude Sonnet 3.5</option>
-                <option value="claude-haiku-3.5">Claude Haiku 3.5 (快速)</option>
-              </optgroup>
-              <!-- OpenAI模型 -->
-              <optgroup label="GPT模型" id="openai-models" style="display:none">
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-              </optgroup>
-            </select>
-            <small>选择用于执行任务的AI模型</small>
-          </div>
-          <div class="form-group">
-            <label for="api-key-input">API Key</label>
-            <input type="password" id="api-key-input" placeholder="输入您的API Key">
-            <small>
-              <a href="#" id="toggle-api-key" style="color: #64ffda; text-decoration: none;">显示/隐藏</a> |
-              <a href="https://console.anthropic.com/" target="_blank" style="color: #64ffda; text-decoration: none;">获取Claude Key</a> |
-              <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #64ffda; text-decoration: none;">获取OpenAI Key</a>
-            </small>
-          </div>
-          <div class="form-group">
-            <label for="api-base-url">API Base URL (可选)</label>
-            <input type="text" id="api-base-url" placeholder="自定义API地址">
-            <small>留空使用默认地址</small>
-          </div>
-          <button id="save-config-btn" class="btn btn-primary">保存配置</button>
-        </section>
-
-        <!-- Agent状态 -->
-        <section class="config-section">
-          <h2>Agent状态</h2>
-          <div class="status-info">
-            <div class="status-item">
-              <span class="status-label">状态：</span>
-              <span id="agent-status" class="status-value">空闲</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">任务队列：</span>
-              <span id="task-queue-count" class="status-value">0</span>
-            </div>
-            <div class="status-item">
-              <span class="status-label">已完成：</span>
-              <span id="completed-tasks-count" class="status-value">0</span>
-            </div>
-          </div>
-        </section>
-      </aside>
-
-      <!-- 右侧主内容：任务列表和日志 -->
-      <main class="content">
-        <!-- 任务列表 -->
-        <section class="content-section">
-          <h2>任务列表</h2>
-          <div id="task-list" class="task-list">
-            <div class="empty-state">
-              <p>暂无任务</p>
-              <small>连接到服务器后，任务将自动显示在这里</small>
-            </div>
-          </div>
-        </section>
-
-        <!-- 日志终端 -->
-        <section class="content-section">
-          <h2>执行日志</h2>
-          <div id="log-terminal" class="log-terminal">
-            <div class="log-entry">
-              <span class="log-time">[00:00:00]</span>
-              <span class="log-level info">INFO</span>
-              <span class="log-message">iTeam Agent Client 已启动</span>
-            </div>
-          </div>
-        </section>
-      </main>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="brand">
+      <span style="color: var(--accent-blue); font-size: 20px;">🤖</span>
+      <span>iTeam Agent</span>
+      <span class="version-tag">v0.1.0</span>
     </div>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+      <div class="nav-tab active" data-tab="dashboard">运行监控</div>
+      <div class="nav-tab" data-tab="config">参数配置</div>
+      <div class="nav-tab" data-tab="logs">系统日志</div>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="header-actions">
+      <div class="connection-pill" id="connection-status">
+        <span class="status-indicator offline"></span>
+        <span>未连接</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <div class="main-container">
+
+    <!-- TAB 1: DASHBOARD (Tasks & Status) -->
+    <div id="tab-dashboard" class="tab-content">
+
+      <!-- Metrics Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Client Status</div>
+          <div class="metric-value">
+            <span class="badge badge-neutral" id="agent-status-badge">OFFLINE</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Active Tasks</div>
+          <div class="metric-value">
+            0 <span class="badge badge-error" id="task-count-badge"
+              style="display:none; margin-left:8px; font-size: 12px;">0</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">AI Model</div>
+          <div class="metric-value" id="dashboard-ai-model" style="font-size: 14px; margin-top: 4px;">未配置</div>
+        </div>
+      </div>
+
+      <!-- Task Table Toolbar -->
+      <div class="toolbar" style="margin-top: 20px;">
+        <div class="filter-group">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="搜索任务 ID...">
+          </div>
+        </div>
+        <div class="actions-group">
+          <!-- 预留操作按钮 -->
+        </div>
+      </div>
+
+      <!-- Task List Table -->
+      <div class="table-container" style="flex: 1; min-height: 0;">
+        <div class="table-header">
+          <div>任务名称</div>
+          <div style="width: 100px;">状态</div>
+          <div style="width: 150px;">进度</div>
+          <div style="width: 120px;">时间</div>
+          <div style="width: 60px; text-align: right;">操作</div>
+        </div>
+        <div class="table-body" id="task-list">
+          <!-- Empty State -->
+          <div class="empty-state">
+            <p>暂无任务</p>
+            <small>连接到服务器后，任务将自动显示在这里</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: CONFIGURATION -->
+    <div id="tab-config" class="tab-content" style="display: none;">
+      <div class="config-grid">
+
+        <!-- Connection Config -->
+        <div class="config-card">
+          <div class="card-header">
+            <h3>服务器连接</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>服务器地址</label>
+              <input type="text" id="server-url" value="http://localhost:3000">
+            </div>
+            <div class="form-group">
+              <label>Device Key</label>
+              <input type="password" id="api-key" value="iteam-device-key">
+            </div>
+            <div class="form-actions">
+              <button id="connect-btn" class="action-btn-primary btn-blue"
+                style="width: 100%; justify-content: center;">连接服务器</button>
+              <button id="disconnect-btn" class="action-btn-primary btn-orange"
+                style="width: 100%; justify-content: center; display: none;">断开连接</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agent Identity -->
+        <div class="config-card">
+          <div class="card-header">
+            <h3>Agent 身份</h3>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label>设备名称</label>
+              <input type="text" id="agent-name" placeholder="例如: MacBook Pro Agent">
+            </div>
+            <div class="form-group">
+              <label>角色类型</label>
+              <select id="agent-role">
+                <option value="">选择角色...</option>
+                <option value="frontend">Frontend Developer</option>
+                <option value="backend">Backend Developer</option>
+                <option value="fullstack">Full Stack Developer</option>
+                <option value="devops">DevOps Engineer</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>技能标签 (逗号分隔)</label>
+              <input type="text" id="agent-skills" placeholder="react, node, docker...">
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Model Config -->
+        <div class="config-card" style="grid-column: span 2;">
+          <div class="card-header">
+            <h3>AI 模型配置</h3>
+          </div>
+          <div class="card-body">
+            <div class="grid-2-col">
+              <div class="form-group">
+                <label>AI 提供商</label>
+                <select id="ai-provider">
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="openai">OpenAI (GPT)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>模型选择</label>
+                <select id="ai-model">
+                  <optgroup label="Claude" id="claude-models">
+                    <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
+                    <option value="claude-sonnet-3.5">Claude Sonnet 3.5</option>
+                  </optgroup>
+                  <optgroup label="OpenAI" id="openai-models" style="display:none">
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="api-key-input" placeholder="sk-...">
+            </div>
+
+            <div class="form-group">
+              <label>Custom Base URL (Optional)</label>
+              <input type="text" id="api-base-url" placeholder="https://api.anthropic.com">
+            </div>
+
+            <div class="form-actions" style="margin-top: 10px; text-align: right;">
+              <button id="save-config-btn" class="action-btn-primary">保存配置</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 3: LOGS -->
+    <div id="tab-logs" class="tab-content" style="display: none; height: 100%;">
+      <div class="log-terminal-container">
+        <div class="terminal-header">
+          <span style="font-size: 12px; color: var(--text-tertiary);">console output</span>
+          <button class="icon-btn-small"
+            style="width: auto; padding: 0 8px; height: 20px; font-size: 10px;">CLEAR</button>
+        </div>
+        <div id="log-terminal" class="log-terminal">
+          <!-- Logs injected here -->
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="renderer.js"></script>
 </body>
+
 </html>

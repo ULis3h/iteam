@@ -1,3 +1,20 @@
+// 错误处理：捕获全局错误并显示
+window.onerror = function (message, source, lineno, colno, error) {
+  console.error('Global Error:', message, error);
+  const errDiv = document.createElement('div');
+  errDiv.style.position = 'fixed';
+  errDiv.style.bottom = '0';
+  errDiv.style.left = '0';
+  errDiv.style.right = '0';
+  errDiv.style.background = 'rgba(239, 68, 68, 0.9)';
+  errDiv.style.color = '#fff';
+  errDiv.style.padding = '8px';
+  errDiv.style.fontSize = '12px';
+  errDiv.style.zIndex = '9999';
+  errDiv.textContent = `JS Error: ${message} (${source}:${lineno})`;
+  document.body.appendChild(errDiv);
+};
+
 // 应用状态
 let appState = {
   connected: false,
@@ -12,85 +29,141 @@ let appState = {
   logs: []
 };
 
-// DOM元素
-const elements = {
-  // 连接相关
-  serverUrl: document.getElementById('server-url'),
-  apiKey: document.getElementById('api-key'),
-  connectBtn: document.getElementById('connect-btn'),
-  disconnectBtn: document.getElementById('disconnect-btn'),
-  connectionStatus: document.getElementById('connection-status'),
-
-  // Agent配置
-  agentName: document.getElementById('agent-name'),
-  agentRole: document.getElementById('agent-role'),
-  agentSkills: document.getElementById('agent-skills'),
-  saveConfigBtn: document.getElementById('save-config-btn'),
-
-  // AI模型配置
-  aiProvider: document.getElementById('ai-provider'),
-  aiModel: document.getElementById('ai-model'),
-  apiKeyInput: document.getElementById('api-key-input'),
-  apiBaseUrl: document.getElementById('api-base-url'),
-  toggleApiKey: document.getElementById('toggle-api-key'),
-
-  // 状态显示
-  agentStatus: document.getElementById('agent-status'),
-  taskQueueCount: document.getElementById('task-queue-count'),
-  completedTasksCount: document.getElementById('completed-tasks-count'),
-
-  // 任务和日志
-  taskList: document.getElementById('task-list'),
-  logTerminal: document.getElementById('log-terminal'),
-
-  // 版本号
-  appVersion: document.getElementById('app-version')
-};
+// DOM元素引用 (将在 DOMContentLoaded 后填充)
+let elements = {};
 
 // 初始化
-async function initialize() {
-  // 获取应用版本
+document.addEventListener('DOMContentLoaded', async () => {
   try {
-    const version = await window.electronAPI.getAppVersion();
-    elements.appVersion.textContent = `v${version}`;
-  } catch (error) {
-    console.error('Failed to get app version:', error);
+    initElements();
+    bindEventListeners();
+    loadSavedConfig();
+    setupIPCListeners();
+
+    // 默认显示第一个标签页
+    switchTab('dashboard');
+
+    addLog('info', 'iTeam Agent Client 已启动');
+
+    // 检查 Electron API
+    if (!window.electronAPI) {
+      addLog('error', 'Electron IPC API 未加载，功能将受限');
+    }
+  } catch (err) {
+    console.error('Initalization error:', err);
+    alert('应用初始化失败: ' + err.message);
   }
+});
 
-  // 加载保存的配置
-  loadSavedConfig();
+function initElements() {
+  elements = {
+    // 导航
+    navTabs: document.querySelectorAll('.nav-tab'),
+    tabContents: document.querySelectorAll('.tab-content'),
 
-  // 绑定事件监听器
-  bindEventListeners();
+    // 连接状态
+    connectionStatus: document.getElementById('connection-status'),
 
-  // 设置IPC监听器
-  setupIPCListeners();
+    // 仪表盘元素
+    dashboardAiModel: document.getElementById('dashboard-ai-model'),
 
-  addLog('info', 'iTeam Agent Client 已启动');
+    // 配置表单
+    serverUrl: document.getElementById('server-url'),
+    apiKey: document.getElementById('api-key'),
+    connectBtn: document.getElementById('connect-btn'),
+    disconnectBtn: document.getElementById('disconnect-btn'),
+
+    agentName: document.getElementById('agent-name'),
+    agentRole: document.getElementById('agent-role'),
+    agentSkills: document.getElementById('agent-skills'),
+
+    aiProvider: document.getElementById('ai-provider'),
+    aiModel: document.getElementById('ai-model'),
+    apiKeyInput: document.getElementById('api-key-input'),
+    apiBaseUrl: document.getElementById('api-base-url'),
+    saveConfigBtn: document.getElementById('save-config-btn'),
+
+    // 任务列表
+    taskList: document.getElementById('task-list'),
+
+    // 日志
+    logTerminal: document.getElementById('log-terminal'),
+
+    // 状态统计
+    statusBadge: document.getElementById('agent-status-badge'),
+    taskCountBadge: document.getElementById('task-count-badge')
+  };
 }
 
-// 加载保存的配置
+// 更新仪表盘 UI 显示
+function updateDashboardUI() {
+  if (elements.dashboardAiModel && appState.agentConfig) {
+    const model = appState.agentConfig.aiModel || '未配置';
+    const provider = appState.agentConfig.aiProvider || 'anthropic';
+    let providerLabel = provider;
+
+    if (provider === 'anthropic') providerLabel = 'Claude';
+    if (provider === 'openai') providerLabel = 'GPT';
+
+    elements.dashboardAiModel.textContent = `${providerLabel} / ${model}`;
+  }
+}
+
+// 切换标签页
+function switchTab(tabId) {
+  // 更新 Tab 样式
+  if (elements.navTabs) {
+    elements.navTabs.forEach(tab => {
+      if (tab.dataset.tab === tabId) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+  }
+
+  // 更新内容显示
+  if (elements.tabContents) {
+    elements.tabContents.forEach(content => {
+      if (content.id === `tab-${tabId}`) {
+        // 恢复 CSS 中定义的 display (flex)
+        content.style.display = '';
+      } else {
+        content.style.display = 'none';
+      }
+    });
+  }
+}
+
+// 加载配置
 function loadSavedConfig() {
   const savedConfig = localStorage.getItem('agentConfig');
   if (savedConfig) {
     try {
       const config = JSON.parse(savedConfig);
-      elements.agentName.value = config.name || '';
-      elements.agentRole.value = config.role || '';
-      elements.agentSkills.value = config.skills ? config.skills.join(',') : '';
 
-      // 加载AI模型配置
-      elements.aiProvider.value = config.aiProvider || 'anthropic';
-      elements.aiModel.value = config.aiModel || 'claude-sonnet-4-5';
-      elements.apiKeyInput.value = config.apiKey || '';
-      elements.apiBaseUrl.value = config.apiBaseUrl || '';
+      // 填充表单
+      if (elements.agentName) elements.agentName.value = config.name || '';
+      if (elements.agentRole) elements.agentRole.value = config.role || '';
+      if (elements.agentSkills) elements.agentSkills.value = config.skills ? config.skills.join(',') : '';
+
+      if (elements.aiProvider) {
+        elements.aiProvider.value = config.aiProvider || 'anthropic';
+        updateModelOptions(); // 更新模型选项
+      }
+
+      if (elements.aiModel) elements.aiModel.value = config.aiModel || 'claude-sonnet-4-5';
+      if (elements.apiKeyInput) elements.apiKeyInput.value = config.apiKey || '';
+      if (elements.apiBaseUrl) elements.apiBaseUrl.value = config.apiBaseUrl || '';
 
       appState.agentConfig = config;
 
-      // 更新模型选项显示
-      updateModelOptions();
-    } catch (error) {
-      console.error('Failed to load saved config:', error);
+      // 同步更新仪表盘
+      updateDashboardUI();
+
+    } catch (e) {
+      console.error('加载配置失败', e);
+      addLog('error', '加载保存的配置失败');
     }
   }
 }
@@ -98,123 +171,134 @@ function loadSavedConfig() {
 // 保存配置
 function saveConfig() {
   const config = {
-    name: elements.agentName.value.trim(),
-    role: elements.agentRole.value,
-    skills: elements.agentSkills.value.split(',').map(s => s.trim()).filter(s => s),
-    aiProvider: elements.aiProvider.value,
-    aiModel: elements.aiModel.value,
-    apiKey: elements.apiKeyInput.value.trim(),
-    apiBaseUrl: elements.apiBaseUrl.value.trim()
+    name: elements.agentName ? elements.agentName.value.trim() : '',
+    role: elements.agentRole ? elements.agentRole.value : '',
+    skills: elements.agentSkills ? elements.agentSkills.value.split(',').map(s => s.trim()).filter(s => s) : [],
+    aiProvider: elements.aiProvider ? elements.aiProvider.value : 'anthropic',
+    aiModel: elements.aiModel ? elements.aiModel.value : '',
+    apiKey: elements.apiKeyInput ? elements.apiKeyInput.value.trim() : '',
+    apiBaseUrl: elements.apiBaseUrl ? elements.apiBaseUrl.value.trim() : ''
   };
 
-  if (!config.name) {
-    addLog('warning', '请输入设备名称');
-    return;
-  }
-
-  if (!config.role) {
-    addLog('warning', '请选择角色');
-    return;
-  }
-
-  if (!config.apiKey) {
-    addLog('warning', '请输入API Key');
+  if (!config.name || !config.role) {
+    addLog('warning', '请填写完整的 Agent 信息');
+    switchTab('config');
     return;
   }
 
   appState.agentConfig = config;
   localStorage.setItem('agentConfig', JSON.stringify(config));
 
-  // 通知主进程更新配置
-  window.electronAPI.updateAgentConfig(config);
+  // 更新仪表盘
+  updateDashboardUI();
+
+  // 通知主进程
+  if (window.electronAPI) {
+    window.electronAPI.updateAgentConfig(config);
+  }
 
   addLog('success', '配置已保存');
 }
 
-// 绑定事件监听器
+// 绑定事件
 function bindEventListeners() {
-  // 连接按钮
-  elements.connectBtn.addEventListener('click', connectToServer);
-  elements.disconnectBtn.addEventListener('click', disconnectFromServer);
+  // Tab 切换
+  if (elements.navTabs) {
+    elements.navTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchTab(tab.dataset.tab);
+      });
+    });
+  }
 
-  // 保存配置按钮
-  elements.saveConfigBtn.addEventListener('click', saveConfig);
+  // 连接控制
+  if (elements.connectBtn) {
+    elements.connectBtn.addEventListener('click', connectToServer);
+  }
 
-  // 服务器地址和API Key变化时保存
-  elements.serverUrl.addEventListener('change', () => {
-    appState.serverUrl = elements.serverUrl.value;
-    localStorage.setItem('serverUrl', appState.serverUrl);
-  });
+  if (elements.disconnectBtn) {
+    elements.disconnectBtn.addEventListener('click', disconnectFromServer);
+  }
 
-  elements.apiKey.addEventListener('change', () => {
-    appState.apiKey = elements.apiKey.value;
-    localStorage.setItem('apiKey', appState.apiKey);
-  });
+  // 配置保存
+  if (elements.saveConfigBtn) {
+    elements.saveConfigBtn.addEventListener('click', saveConfig);
+  }
 
-  // AI提供商切换时更新模型选项
-  elements.aiProvider.addEventListener('change', updateModelOptions);
+  // 监听输入变化自动更新 State
+  if (elements.serverUrl) {
+    elements.serverUrl.addEventListener('change', () => {
+      appState.serverUrl = elements.serverUrl.value;
+    });
+  }
 
-  // API Key显示/隐藏切换
-  elements.toggleApiKey.addEventListener('click', (e) => {
-    e.preventDefault();
-    const input = elements.apiKeyInput;
-    input.type = input.type === 'password' ? 'text' : 'password';
-  });
+  if (elements.apiKey) {
+    elements.apiKey.addEventListener('change', () => {
+      appState.apiKey = elements.apiKey.value;
+    });
+  }
+
+  // AI Provider change
+  if (elements.aiProvider) {
+    elements.aiProvider.addEventListener('change', updateModelOptions);
+  }
 }
 
-// 根据AI提供商更新模型选项
+// 更新模型选项
 function updateModelOptions() {
+  if (!elements.aiProvider) return;
+
   const provider = elements.aiProvider.value;
   const claudeModels = document.getElementById('claude-models');
   const openaiModels = document.getElementById('openai-models');
 
+  if (!claudeModels || !openaiModels) return;
+
   if (provider === 'anthropic') {
     claudeModels.style.display = '';
     openaiModels.style.display = 'none';
-    // 选择第一个Claude模型
-    elements.aiModel.value = 'claude-sonnet-4-5';
   } else if (provider === 'openai') {
     claudeModels.style.display = 'none';
     openaiModels.style.display = '';
-    // 选择第一个OpenAI模型
-    elements.aiModel.value = 'gpt-4-turbo';
   } else {
-    // custom - 显示所有选项
     claudeModels.style.display = '';
     openaiModels.style.display = '';
   }
 }
 
-// 设置IPC监听器
+// IPC 监听
 function setupIPCListeners() {
-  // 接收任务
+  if (!window.electronAPI) return;
+
   window.electronAPI.onTaskReceived((task) => {
     addTask(task);
     addLog('info', `收到新任务: ${task.title}`);
   });
 
-  // 接收日志
   window.electronAPI.onLogMessage((log) => {
     addLog(log.level, log.message);
   });
 
-  // 状态更新
   window.electronAPI.onStatusUpdate((status) => {
     updateStatus(status);
   });
 }
 
-// 连接到服务器
+// 连接逻辑
 async function connectToServer() {
   if (!appState.agentConfig.name) {
-    addLog('warning', '请先配置Agent信息');
+    addLog('warning', '请先保存 Agent 配置');
+    switchTab('config');
     return;
   }
 
-  addLog('info', `正在连接到 ${appState.serverUrl}...`);
   elements.connectBtn.disabled = true;
+  elements.connectBtn.textContent = '连接中...';
+  addLog('info', `正在连接到 ${appState.serverUrl}...`);
 
   try {
+    if (!window.electronAPI) throw new Error('Electron API 不可用');
+
     const result = await window.electronAPI.connectToServer({
       url: appState.serverUrl,
       apiKey: appState.apiKey,
@@ -223,155 +307,175 @@ async function connectToServer() {
 
     if (result.success) {
       appState.connected = true;
-      updateConnectionStatus(true);
-      elements.connectBtn.disabled = true;
-      elements.disconnectBtn.disabled = false;
+      updateConnectionUI(true);
       addLog('success', '已连接到服务器');
     } else {
       throw new Error(result.error || '连接失败');
     }
   } catch (error) {
+    console.error('连接错误:', error);
     addLog('error', `连接失败: ${error.message}`);
     elements.connectBtn.disabled = false;
+    elements.connectBtn.textContent = '连接服务器';
   }
 }
 
-// 断开服务器连接
 async function disconnectFromServer() {
-  addLog('info', '正在断开连接...');
-
   try {
-    await window.electronAPI.disconnectFromServer();
+    if (window.electronAPI) {
+      await window.electronAPI.disconnectFromServer();
+    }
     appState.connected = false;
-    updateConnectionStatus(false);
-    elements.connectBtn.disabled = false;
-    elements.disconnectBtn.disabled = true;
+    updateConnectionUI(false);
     addLog('info', '已断开连接');
   } catch (error) {
-    addLog('error', `断开连接失败: ${error.message}`);
+    addLog('error', `断开失败: ${error.message}`);
   }
 }
 
-// 更新连接状态
-function updateConnectionStatus(connected) {
-  const statusIndicator = elements.connectionStatus.querySelector('.status-indicator');
-  const statusText = elements.connectionStatus.querySelector('.status-text');
-
+function updateConnectionUI(connected) {
   if (connected) {
-    statusIndicator.classList.remove('offline');
-    statusIndicator.classList.add('online');
-    statusText.textContent = '已连接';
+    elements.connectBtn.style.display = 'none';
+    elements.disconnectBtn.style.display = 'flex';
+    elements.connectionStatus.innerHTML = '<span class="status-indicator online"></span><span>已连接</span>';
+    elements.connectionStatus.classList.add('connected');
+
+    // 更新 Header Badge
+    if (elements.statusBadge) {
+      elements.statusBadge.className = 'badge badge-success';
+      elements.statusBadge.textContent = 'ONLINE';
+    }
   } else {
-    statusIndicator.classList.remove('online');
-    statusIndicator.classList.add('offline');
-    statusText.textContent = '未连接';
+    elements.connectBtn.style.display = 'flex';
+    elements.connectBtn.disabled = false;
+    elements.connectBtn.textContent = '连接服务器';
+    elements.disconnectBtn.style.display = 'none';
+    elements.connectionStatus.innerHTML = '<span class="status-indicator offline"></span><span>未连接</span>';
+    elements.connectionStatus.classList.remove('connected');
+
+    if (elements.statusBadge) {
+      elements.statusBadge.className = 'badge badge-neutral';
+      elements.statusBadge.textContent = 'OFFLINE';
+    }
   }
 }
 
-// 添加任务到列表
+// 任务管理
 function addTask(task) {
-  appState.tasks.push(task);
-  renderTaskList();
-  updateTaskCounts();
+  appState.tasks.unshift(task); // 新任务在最前
+  renderTasks();
+
+  // 更新 Badge
+  if (elements.taskCountBadge) {
+    const activeCount = appState.tasks.filter(t => t.status === 'running' || t.status === 'pending').length;
+    elements.taskCountBadge.textContent = activeCount;
+    elements.taskCountBadge.style.display = activeCount > 0 ? 'inline-flex' : 'none';
+  }
 }
 
-// 渲染任务列表
-function renderTaskList() {
+function renderTasks() {
+  const container = elements.taskList;
+  if (!container) return;
+
   if (appState.tasks.length === 0) {
-    elements.taskList.innerHTML = `
+    container.innerHTML = `
       <div class="empty-state">
+        <div style="font-size: 48px; margin-bottom: 16px;">☕</div>
         <p>暂无任务</p>
-        <small>连接到服务器后，任务将自动显示在这里</small>
+        <small style="color: var(--text-tertiary);">等待服务器分配任务...</small>
       </div>
     `;
     return;
   }
 
-  elements.taskList.innerHTML = appState.tasks.map(task => `
-    <div class="task-item" data-task-id="${task.id}">
-      <div class="task-header">
-        <span class="task-title">${task.title}</span>
-        <span class="task-status ${task.status}">${getTaskStatusText(task.status)}</span>
+  container.innerHTML = appState.tasks.map(task => `
+    <div class="data-row task-row" data-id="${task.id}">
+      <div class="col-name">
+        <div class="task-icon">${getTaskIcon(task.type)}</div>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-weight: 500;">${task.title}</span>
+          <span style="font-size: 12px; color: var(--text-tertiary);">${task.id.slice(0, 8)}...</span>
+        </div>
       </div>
-      <div class="task-description">${task.description || '无描述'}</div>
-      <div class="task-meta">
-        <span>优先级: ${task.priority || '普通'}</span>
-        <span>创建时间: ${formatTime(task.createdAt)}</span>
+      
+      <div class="col-status">
+        ${getStatusBadge(task.status)}
+      </div>
+      
+      <div class="col-progress">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" style="width: ${task.progress || 0}%; background: var(--accent-blue)"></div>
+        </div>
+      </div>
+      
+      <div class="col-time">
+        ${formatTime(task.createdAt)}
+      </div>
+      
+      <div class="col-actions">
+        <button class="icon-btn-small" title="查看详情">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        </button>
       </div>
     </div>
   `).join('');
 }
 
-// 获取任务状态文本
-function getTaskStatusText(status) {
-  const statusMap = {
-    pending: '待处理',
-    running: '执行中',
-    completed: '已完成',
-    failed: '失败'
+function getTaskIcon(type) {
+  // 根据任务类型返回简单图标
+  return '⚡';
+}
+
+function getStatusBadge(status) {
+  const map = {
+    pending: '<span class="badge badge-warning">等待中</span>',
+    running: '<span class="badge badge-pro">执行中</span>',
+    completed: '<span class="badge badge-success">已完成</span>',
+    failed: '<span class="badge badge-error">失败</span>'
   };
-  return statusMap[status] || status;
+  return map[status] || `<span class="badge">${status}</span>`;
 }
 
-// 更新任务计数
-function updateTaskCounts() {
-  const queueCount = appState.tasks.filter(t => t.status === 'pending').length;
-  const completedCount = appState.tasks.filter(t => t.status === 'completed').length;
-
-  elements.taskQueueCount.textContent = queueCount;
-  elements.completedTasksCount.textContent = completedCount;
-}
-
-// 更新状态
-function updateStatus(status) {
-  if (status.agentStatus) {
-    elements.agentStatus.textContent = status.agentStatus;
-  }
-}
-
-// 添加日志
+// 日志管理
 function addLog(level, message) {
   const now = new Date();
-  const time = now.toTimeString().split(' ')[0];
+  const timeStr = now.toTimeString().split(' ')[0];
 
-  const logEntry = {
-    time,
-    level,
-    message
-  };
+  appState.logs.push({ time: timeStr, level, message });
+  if (appState.logs.length > 200) appState.logs.shift();
 
-  appState.logs.push(logEntry);
+  if (elements.logTerminal) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
 
-  // 限制日志数量
-  if (appState.logs.length > 100) {
-    appState.logs.shift();
+    let levelClass = 'info';
+    if (level === 'error') levelClass = 'error';
+    if (level === 'success') levelClass = 'success';
+    if (level === 'warning') levelClass = 'warning';
+
+    entry.innerHTML = `
+      <span class="log-time">[${timeStr}]</span>
+      <span class="log-level ${levelClass}">${level.toUpperCase()}</span>
+      <span class="log-message">${message}</span>
+    `;
+
+    elements.logTerminal.appendChild(entry);
+    elements.logTerminal.scrollTop = elements.logTerminal.scrollHeight;
   }
-
-  renderLog(logEntry);
 }
 
-// 渲染日志
-function renderLog(log) {
-  const logElement = document.createElement('div');
-  logElement.className = 'log-entry';
-  logElement.innerHTML = `
-    <span class="log-time">[${log.time}]</span>
-    <span class="log-level ${log.level}">${log.level.toUpperCase()}</span>
-    <span class="log-message">${log.message}</span>
-  `;
-
-  elements.logTerminal.appendChild(logElement);
-
-  // 自动滚动到底部
-  elements.logTerminal.scrollTop = elements.logTerminal.scrollHeight;
+function updateStatus(status) {
+  // 更新 UI 上的状态显示
+  if (status.agentStatus && elements.statusBadge) {
+    elements.statusBadge.textContent = status.agentStatus.toUpperCase();
+  }
 }
 
-// 格式化时间
-function formatTime(timestamp) {
-  if (!timestamp) return '-';
-  const date = new Date(timestamp);
-  return date.toLocaleString('zh-CN');
+function formatTime(ts) {
+  if (!ts) return '-';
+  try {
+    return new Date(ts).toLocaleTimeString();
+  } catch (e) {
+    return '-';
+  }
 }
-
-// 启动应用
-initialize();

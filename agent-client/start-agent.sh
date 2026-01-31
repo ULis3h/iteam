@@ -24,21 +24,21 @@ fi
 NPM_VERSION=$(npm -v)
 echo "✓ npm: $NPM_VERSION"
 
-# 检查Claude Code CLI
-if ! command -v claude &> /dev/null; then
-    echo "⚠️  警告: 未找到Claude Code CLI"
-    echo "Agent将无法执行自动化任务"
-    echo "请运行: npm install -g @anthropic/claude-code"
-    echo ""
-    read -p "是否继续启动应用? (y/n) " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-else
-    CLAUDE_VERSION=$(claude --version 2>&1 || echo "未知版本")
-    echo "✓ Claude Code CLI: $CLAUDE_VERSION"
-fi
+# # 检查Claude Code CLI
+# if ! command -v claude &> /dev/null; then
+#     echo "⚠️  警告: 未找到Claude Code CLI"
+#     echo "Agent将无法执行自动化任务"
+#     echo "请运行: npm install -g @anthropic/claude-code"
+#     echo ""
+#     read -p "是否继续启动应用? (y/n) " -n 1 -r
+#     echo ""
+#     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+#         exit 1
+#     fi
+# else
+#     CLAUDE_VERSION=$(claude --version 2>&1 || echo "未知版本")
+#     echo "✓ Claude Code CLI: $CLAUDE_VERSION"
+# fi
 
 echo ""
 echo "========================================="

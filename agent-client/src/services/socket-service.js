@@ -88,6 +88,9 @@ class SocketService {
       return;
     }
 
+    // 保存配置以便后续使用
+    this.agentConfig = agentConfig;
+
     const deviceInfo = {
       name: agentConfig.name,
       type: 'claude-code',
@@ -96,6 +99,8 @@ class SocketService {
       metadata: {
         role: agentConfig.role,
         skills: agentConfig.skills,
+        aiProvider: agentConfig.aiProvider || 'anthropic',
+        aiModel: agentConfig.aiModel || 'claude-sonnet-4-5',
         arch: os.arch(),
         hostname: os.hostname(),
         cpus: os.cpus().length,
@@ -155,12 +160,36 @@ class SocketService {
       return;
     }
 
-    this.socket.emit('device:heartbeat', {
+    const heartbeatData = {
       deviceId: this.deviceId,
       timestamp: Date.now(),
       cpuUsage: process.cpuUsage(),
       memoryUsage: process.memoryUsage()
-    });
+    };
+
+    // 包含当前AI配置信息
+    if (this.agentConfig) {
+      heartbeatData.aiProvider = this.agentConfig.aiProvider;
+      heartbeatData.aiModel = this.agentConfig.aiModel;
+    }
+
+    this.socket.emit('device:heartbeat', heartbeatData);
+  }
+
+  // 更新Agent配置
+  updateAgentConfig(agentConfig) {
+    this.agentConfig = agentConfig;
+
+    // 如果已连接，发送配置更新到服务器
+    if (this.socket && this.connected && this.deviceId) {
+      this.socket.emit('device:config-update', {
+        deviceId: this.deviceId,
+        aiProvider: agentConfig.aiProvider,
+        aiModel: agentConfig.aiModel,
+        role: agentConfig.role,
+        skills: agentConfig.skills
+      });
+    }
   }
 
   // 注册事件处理器
