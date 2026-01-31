@@ -3,22 +3,23 @@
 </p>
 
 <p align="center">
-  <strong>一人即团队 · 让个人开发者拥有团队协作的超能力</strong>
+  <strong>One Person, One Team · Empower solo developers with team-level capabilities</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/ULis3h/iteam/releases"><img src="https://img.shields.io/github/v/release/ULis3h/iteam?include_prereleases&style=flat-square&color=8B5CF6" alt="Release"></a>
   <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
-  <a href="https://deepwiki.com/ULis3h/iteam"><img src="https://img.shields.io/badge/Ask%20DeepWiki-8B5CF6?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMiA3TDEyIDEyTDIyIDdMMTIgMloiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CjxwYXRoIGQ9Ik0yIDE3TDEyIDIyTDIyIDE3IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8cGF0aCBkPSJNMiAxMkwxMiAxN0wyMiAxMiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+&logoColor=white" alt="Ask DeepWiki"></a>
+  <a href="https://deepwiki.com/ULis3h/iteam"><img src="https://img.shields.io/badge/Ask%20DeepWiki-8B5CF6?style=flat-square" alt="Ask DeepWiki"></a>
 </p>
 
 <p align="center">
-  <a href="#-快速开始">快速开始</a> •
-  <a href="#-功能特性">功能特性</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-features">Features</a> •
   <a href="#-agent-client">Agent Client</a> •
-  <a href="#-技术栈">技术栈</a> •
-  <a href="#-文档">文档</a>
+  <a href="#-tech-stack">Tech Stack</a> •
+  <a href="#-documentation">Docs</a> •
+  <a href="./README_CN.md">中文文档</a>
 </p>
 
 ---
@@ -27,31 +28,31 @@
   <img src="docs/images/dashboard-preview.png" alt="Dashboard Preview" width="90%">
 </p>
 
-## 🎯 核心理念
+## 🎯 Core Concept
 
-**iTeam** 让个人开发者能够像管理一个完整团队一样，协调多个 AI Agent 和开发设备。
+**iTeam** enables solo developers to coordinate multiple AI Agents and development devices like managing a full team.
 
-- 🖥️ **多设备协作** - 将多台设备作为虚拟团队成员管理
-- 🤖 **AI Agent 集成** - 与 Claude Code、Gemini CLI 等 AI 工具深度集成  
-- 📊 **实时拓扑图** - 可视化展示所有设备和 Agent 的连接状态
-- 📝 **知识库管理** - 集中管理项目文档、技术笔记、Bug 修复记录
+- 🖥️ **Multi-device Collaboration** - Manage multiple devices as virtual team members
+- 🤖 **AI Agent Integration** - Deep integration with Claude Code, Gemini CLI, and more
+- 📊 **Real-time Topology** - Visualize connections and status of all devices and agents
+- 📝 **Knowledge Base** - Centralized management for docs, tech notes, and bug fixes
 
 ---
 
-## ⚡ 快速开始
+## ⚡ Quick Start
 
 ```bash
-# 克隆仓库
+# Clone the repository
 git clone https://github.com/ULis3h/iteam.git
 cd iteam
 
-# 一键启动开发环境
+# Start development environment
 ./start-dev.sh
 ```
 
-访问 http://localhost:5173 开始使用！
+Visit http://localhost:5173 to get started!
 
-### 下载 Agent Client
+### Download Agent Client
 
 <p>
   <a href="https://github.com/ULis3h/iteam/releases/latest">
@@ -61,76 +62,77 @@ cd iteam
 
 ---
 
-## ✨ 功能特性
+## ✨ Features
 
-### 📡 设备拓扑图
-点击展开查看每个部门的设备详情，实时监控连接状态。
+### 📡 Device Topology
+Click to expand and view device details for each department, with real-time connection monitoring.
 
 <img src="docs/images/topology-preview.png" alt="Topology" width="80%">
 
 ### 🤖 AI Agent Client
-独立桌面应用，自动接收任务并调用 Claude Code 执行。
+Standalone desktop app that auto-receives tasks and executes via Claude Code.
 
-### 📋 项目管理
-看板式任务管理，支持多项目并行。
+### 📋 Project Management
+Kanban-style task management with multi-project support.
 
-### 📝 文档中心
-Markdown 编辑器，分类管理技术文档。
+### 📝 Document Center
+Markdown editor with categorized documentation management.
 
 ---
 
 ## 🤖 Agent Client
 
-Agent Client 是 iTeam 的桌面客户端，让你的开发机器变成智能 Agent：
+Agent Client is iTeam's desktop application that turns your dev machine into a smart agent:
 
 ```bash
-# 安装依赖
+# Install dependencies
 cd agent-client && npm install
 
-# 启动 Agent
+# Start the agent
 ./start-agent.sh
 ```
 
-**主要功能：**
-- ✅ 自动连接 iTeam 服务器
-- ✅ 接收并执行派发的任务
-- ✅ 调用 Claude Code 自动完成开发任务
-- ✅ 实时上报任务状态
+**Key Features:**
+- ✅ Auto-connect to iTeam server
+- ✅ Receive and execute dispatched tasks
+- ✅ Invoke Claude Code for automated development
+- ✅ Real-time task status reporting
 
-详见 [Agent Client 文档](./agent-client/README.md)
+See [Agent Client Documentation](./agent-client/README.md) for details.
 
 ---
 
-## 🛠 技术栈
+## 🛠 Tech Stack
 
-| 层级 | 技术 |
-|------|------|
+| Layer | Technology |
+|-------|------------|
 | **Frontend** | React 18, TypeScript, Tailwind CSS, Vite |
 | **Backend** | Node.js, Express, Prisma ORM, Socket.IO |
 | **Database** | SQLite (Dev) / PostgreSQL (Prod) |
 | **Desktop** | Electron |
-| **AI Integration** | Claude Code, 支持 Gemini CLI |
+| **AI Integration** | Claude Code, Gemini CLI support |
 
 ---
 
-## 📖 文档
+## 📖 Documentation
 
-- 📘 [系统架构](./ARCHITECTURE.md) - 完整架构设计
-- 📗 [快速上手](./QUICKSTART.md) - 5分钟入门指南
-- 📙 [Agent Client](./agent-client/README.md) - 桌面客户端使用
-- 📕 [API 参考](./docs/api/README.md) - REST API 文档
+- 📘 [System Architecture](./ARCHITECTURE.md) - Complete architecture design
+- 📗 [Quick Start Guide](./QUICKSTART.md) - Get started in 5 minutes
+- 📙 [Agent Client](./agent-client/README.md) - Desktop client usage
+- 📕 [API Reference](./docs/api/README.md) - REST API documentation
+- 🇨🇳 [中文文档](./README_CN.md) - Chinese documentation
 
 ---
 
-## 🗺 路线图
+## 🗺 Roadmap
 
-- [x] 设备管理与实时状态监控
-- [x] 拓扑图可视化（点击展开/收起）
-- [x] Agent Client 桌面应用
-- [x] 文档编辑器
-- [ ] 工作流自动化
-- [ ] 多 Agent 协作任务
-- [ ] 代码贡献分析
+- [x] Device management with real-time status monitoring
+- [x] Topology visualization (click to expand/collapse)
+- [x] Agent Client desktop application
+- [x] Document editor
+- [ ] Workflow automation
+- [ ] Multi-agent collaborative tasks
+- [ ] Code contribution analytics
 
 ---
 
@@ -141,5 +143,5 @@ MIT License © 2024 [ULis3h](https://github.com/ULis3h)
 ---
 
 <p align="center">
-  <strong>iTeam</strong> - 让一个人拥有一个团队的力量 💪
+  <strong>iTeam</strong> - Give one person the power of an entire team 💪
 </p>
