@@ -3,8 +3,10 @@ import { Monitor, FolderGit2, FileText, TrendingUp, Circle, Cpu, HardDrive, Zap 
 import type { Stats, Device } from '../types'
 import { OSIcon } from '../components/OSIcon'
 import { getAuthHeaders } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 export default function Dashboard() {
+  const { theme } = useTheme()
   const [stats, setStats] = useState<Stats>({
     totalDevices: 0,
     onlineDevices: 0,
@@ -150,10 +152,12 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* 页面标题 */}
       <div className="animate-slide-up">
-        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+        <h1 className={`text-4xl font-bold mb-2 tracking-tight ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+          }`}>
           仪表盘
         </h1>
-        <p className="text-white/70 text-lg">
+        <p className={`text-lg ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+          }`}>
           一览团队协作状态
         </p>
       </div>
@@ -167,9 +171,12 @@ export default function Dashboard() {
             style={{ animationDelay: `${index * 0.1}s` }}
           >
             {/* 卡片背景 */}
-            <div className="gradient-card rounded-2xl p-6 h-full transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+            <div className={`rounded-2xl p-6 h-full transition-all duration-300 hover:scale-105 hover:shadow-2xl ${theme === 'kanban'
+              ? 'bg-gray-800 border border-gray-700'
+              : 'gradient-card'
+              }`}>
               {/* 渐变背景装饰 */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${card.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity`} />
+              <div className={`absolute inset-0 bg-gradient-to-br ${card.bgGradient} opacity-50 group-hover:opacity-70 transition-opacity rounded-2xl`} />
 
               <div className="relative z-10">
                 {/* 图标 */}
@@ -177,43 +184,56 @@ export default function Dashboard() {
                   <div className={`p-3 rounded-xl bg-gradient-to-br ${card.gradient} shadow-lg`}>
                     <card.icon className="h-6 w-6 text-white" />
                   </div>
-                  <div className="text-xs font-medium text-white/60 bg-white/10 px-2 py-1 rounded-full">
+                  <div className={`text-xs font-medium px-2 py-1 rounded-full ${theme === 'kanban'
+                    ? 'text-gray-400 bg-gray-700/50'
+                    : 'text-gray-500 bg-gray-200/50'
+                    }`}>
                     {card.change}
                   </div>
                 </div>
 
                 {/* 数值 */}
                 <div>
-                  <p className="text-sm text-white/70 mb-1">
+                  <p className={`text-sm mb-1 ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
                     {card.title}
                   </p>
-                  <p className="text-3xl font-bold text-white">
+                  <p className={`text-3xl font-bold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                    }`}>
                     {card.value}
                   </p>
                 </div>
               </div>
 
               {/* 光泽效果 */}
-              <div className="absolute inset-0 bg-gradient-shine bg-[length:200%_100%] opacity-0 group-hover:opacity-100 group-hover:animate-shine transition-opacity" />
+              <div className="absolute inset-0 bg-gradient-shine bg-[length:200%_100%] opacity-0 group-hover:opacity-100 group-hover:animate-shine transition-opacity rounded-2xl" />
             </div>
           </div>
         ))}
       </div>
 
       {/* 设备列表 */}
-      <div className="gradient-card rounded-2xl overflow-hidden shadow-2xl animate-slide-up" style={{ animationDelay: '0.2s' }}>
+      <div className={`rounded-2xl overflow-hidden shadow-2xl animate-slide-up ${theme === 'kanban'
+          ? 'bg-gray-800 border border-gray-700'
+          : 'gradient-card'
+        }`} style={{ animationDelay: '0.2s' }}>
         {/* 标题栏 */}
-        <div className="px-6 py-5 border-b border-white/10 bg-gradient-to-r from-white/5 to-transparent">
+        <div className={`px-6 py-5 border-b ${theme === 'kanban'
+            ? 'border-gray-700 bg-gradient-to-r from-gray-900/50 to-transparent'
+            : 'border-white/10 bg-gradient-to-r from-white/5 to-transparent'
+          }`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg">
                 <Monitor className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-white">
+                <h2 className={`text-xl font-semibold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                  }`}>
                   设备列表
                 </h2>
-                <p className="text-sm text-white/60">
+                <p className={`text-sm ${theme === 'kanban' ? 'text-gray-500' : 'text-gray-500'
+                  }`}>
                   共 {onlineDevices.length} 个设备 · {onlineDevices.filter(d => d.status !== 'offline').length} 个在线
                 </p>
               </div>
@@ -226,16 +246,18 @@ export default function Dashboard() {
         <div className="p-6">
           {onlineDevices.length === 0 ? (
             <div className="text-center py-12">
-              <Monitor className="h-16 w-16 text-white/20 mx-auto mb-4" />
-              <p className="text-white/50">暂无设备</p>
+              <Monitor className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-400">暂无设备</p>
             </div>
           ) : (
             <div className="space-y-4">
               {onlineDevices.map((device, index) => (
                 <div
                   key={device.id}
-                  className={`group relative overflow-hidden bg-white/5 hover:bg-white/10 rounded-xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl border border-white/10 ${device.status === 'offline' ? 'opacity-50' : ''
-                    }`}
+                  className={`group relative overflow-hidden rounded-xl p-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl ${theme === 'kanban'
+                      ? 'bg-gray-700/50 hover:bg-gray-700 border border-gray-600'
+                      : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                    } ${device.status === 'offline' ? 'opacity-50' : ''}`}
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
                   {/* 状态指示条 */}
@@ -258,14 +280,16 @@ export default function Dashboard() {
                       {/* 设备详情 */}
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-1">
-                          <h3 className="font-semibold text-white text-lg">
+                          <h3 className={`font-semibold text-lg ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                            }`}>
                             {device.name}
                           </h3>
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r ${getStatusColor(device.status)} text-white`}>
                             {getStatusText(device.status)}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-4 text-sm text-white/60">
+                        <div className={`flex items-center space-x-4 text-sm ${theme === 'kanban' ? 'text-gray-500' : 'text-gray-500'
+                          }`}>
                           <span className="flex items-center space-x-1">
                             <Cpu className="h-3.5 w-3.5" />
                             <span>{getDeviceTypeText(device.type)}</span>
@@ -282,10 +306,12 @@ export default function Dashboard() {
                     {/* 当前任务 */}
                     {device.currentProject && (
                       <div className="text-right ml-4">
-                        <p className="text-sm font-medium text-white mb-1">
+                        <p className={`text-sm font-medium mb-1 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700'
+                          }`}>
                           {device.currentProject}
                         </p>
-                        <p className="text-xs text-white/60">
+                        <p className={`text-xs ${theme === 'kanban' ? 'text-gray-500' : 'text-gray-500'
+                          }`}>
                           {device.currentModule || '-'}
                         </p>
                       </div>

@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FileText, Plus, Search, Tag, Calendar, Book, Bug, Code, FileCode, Users } from 'lucide-react'
 import Card from '../components/Card'
 import type { Document } from '../types'
 import { getAuthHeaders } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 export default function Documents() {
+  const { theme } = useTheme()
+  const navigate = useNavigate()
   const [documents, setDocuments] = useState<Document[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -60,14 +64,19 @@ export default function Documents() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between animate-slide-up">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+          <h1 className={`text-4xl font-bold mb-2 tracking-tight ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+            }`}>
             文档中心
           </h1>
-          <p className="text-white/70 text-lg">
+          <p className={`text-lg ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+            }`}>
             团队知识库和文档管理
           </p>
         </div>
-        <button className="group relative overflow-hidden px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
+        <button
+          onClick={() => navigate('/documents/new')}
+          className="group relative overflow-hidden px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105"
+        >
           <div className="absolute inset-0 bg-gradient-shine bg-[length:200%_100%] group-hover:animate-shine" />
           <div className="relative flex items-center space-x-2">
             <Plus className="h-5 w-5" />
@@ -79,13 +88,17 @@ export default function Documents() {
       {/* 搜索框 */}
       <div className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-white/40" />
+          <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${theme === 'kanban' ? 'text-gray-500' : 'text-gray-400'
+            }`} />
           <input
             type="text"
             placeholder="搜索文档标题、内容或标签..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 gradient-card rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+            className={`w-full pl-12 pr-4 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all ${theme === 'kanban'
+              ? 'bg-gray-700 text-gray-100 placeholder-gray-500 border border-gray-600'
+              : 'gradient-card text-gray-800 placeholder-gray-400'
+              }`}
           />
         </div>
       </div>
@@ -103,7 +116,9 @@ export default function Documents() {
                 group relative overflow-hidden px-5 py-2.5 rounded-xl font-medium transition-all duration-300
                 ${isActive
                   ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg scale-105`
-                  : 'text-white/70 hover:text-white glass hover:scale-105'
+                  : theme === 'kanban'
+                    ? 'text-gray-300 hover:text-white bg-gray-700/50 hover:bg-gray-700 hover:scale-105'
+                    : 'text-gray-600 hover:text-gray-800 glass hover:scale-105'
                 }
               `}
             >
@@ -127,8 +142,8 @@ export default function Documents() {
         {filteredDocuments.length === 0 ? (
           <Card title="暂无文档" icon={FileText} gradient="from-gray-400 to-gray-600">
             <div className="text-center py-12">
-              <FileText className="h-16 w-16 text-white/20 mx-auto mb-4" />
-              <p className="text-white/50">
+              <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-400">
                 {searchQuery ? '未找到匹配的文档' : '暂无文档'}
               </p>
             </div>
@@ -140,11 +155,16 @@ export default function Documents() {
             return (
               <div
                 key={doc.id}
-                className="group gradient-card rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer overflow-hidden"
+                onClick={() => navigate(`/documents/${doc.id}`)}
+                className={`group relative rounded-2xl p-6 pl-8 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl cursor-pointer overflow-hidden ${theme === 'kanban'
+                  ? 'bg-gray-800 border border-gray-700'
+                  : 'gradient-card'
+                  }`}
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 {/* 分类指示条 */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${categoryInfo.gradient}`} />
+                <div className={`absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b ${categoryInfo.gradient} ${theme === 'kanban' ? 'opacity-80' : 'opacity-100'
+                  }`} />
 
                 {/* 文档头部 */}
                 <div className="flex items-start justify-between mb-4">
@@ -153,11 +173,15 @@ export default function Documents() {
                       <div className={`p-2 bg-gradient-to-br ${categoryInfo.gradient} rounded-lg`}>
                         <CategoryIcon className="h-4 w-4 text-white" />
                       </div>
-                      <h3 className="text-xl font-semibold text-white group-hover:text-purple-300 transition-colors">
+                      <h3 className={`text-xl font-semibold transition-colors ${theme === 'kanban'
+                        ? 'text-gray-100 group-hover:text-purple-400'
+                        : 'text-gray-800 group-hover:text-purple-600'
+                        }`}>
                         {doc.title}
                       </h3>
                     </div>
-                    <p className="text-white/60 line-clamp-2 leading-relaxed">
+                    <p className={`line-clamp-2 leading-relaxed ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
                       {doc.content}
                     </p>
                   </div>
@@ -169,7 +193,10 @@ export default function Documents() {
                     {doc.tags.map((tag: string, tagIndex: number) => (
                       <span
                         key={tagIndex}
-                        className="inline-flex items-center px-3 py-1 text-xs bg-white/10 text-white/80 rounded-full border border-white/10"
+                        className={`inline-flex items-center px-3 py-1 text-xs rounded-full border ${theme === 'kanban'
+                          ? 'bg-gray-700 text-gray-300 border-gray-600'
+                          : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}
                       >
                         <Tag className="h-3 w-3 mr-1" />
                         {tag}
@@ -179,7 +206,10 @@ export default function Documents() {
                 )}
 
                 {/* 文档元信息 */}
-                <div className="flex items-center justify-between text-sm text-white/50 border-t border-white/10 pt-4">
+                <div className={`flex items-center justify-between text-sm border-t pt-4 ${theme === 'kanban'
+                  ? 'text-gray-500 border-gray-700'
+                  : 'text-gray-500 border-gray-200'
+                  }`}>
                   <div className="flex items-center space-x-4">
                     <span>作者: {doc.author}</span>
                     <span className="flex items-center space-x-1">

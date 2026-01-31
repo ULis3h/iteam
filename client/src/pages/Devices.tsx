@@ -4,6 +4,7 @@ import type { Device } from '../types'
 import { OSIcon } from '../components/OSIcon'
 import DeviceEditModal from '../components/DeviceEditModal'
 import { getAuthHeaders } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 // 设备详情接口，扩展 metadata
 interface DeviceDetails extends Device {
@@ -68,7 +69,7 @@ function DeviceDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain">
       {/* 背景遮罩 */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -76,14 +77,14 @@ function DeviceDetailModal({
       ></div>
 
       {/* 模态框 */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+      <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-xl mx-4 overflow-hidden my-8">
         {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
-            <div className="relative">
-              <Monitor className="h-8 w-8 text-primary-500" />
-              <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 rounded-full p-0.5">
-                <OSIcon os={device.os} className="w-4 h-4" />
+            <div className="relative group">
+              <Monitor className="h-8 w-8 text-primary-500 transition-transform duration-200 group-hover:scale-105" />
+              <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 rounded-full p-1 shadow-lg ring-2 ring-white/80 dark:ring-gray-700/80 backdrop-blur-sm transition-all duration-200 group-hover:ring-4 group-hover:shadow-xl">
+                <OSIcon os={device.os} className="w-3.5 h-3.5" />
               </div>
             </div>
             <div>
@@ -104,7 +105,7 @@ function DeviceDetailModal({
         </div>
 
         {/* 内容 */}
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto overscroll-contain">
           {/* 基本信息 */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
@@ -226,10 +227,12 @@ function DeviceDetailModal({
 }
 
 export default function Devices() {
+  const { theme } = useTheme()
   const [devices, setDevices] = useState<Device[]>([])
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [detailDevice, setDetailDevice] = useState<DeviceDetails | null>(null)
   const [editDevice, setEditDevice] = useState<Device | null>(null)
+  const [isAddingDevice, setIsAddingDevice] = useState(false)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
 
   useEffect(() => {
@@ -360,6 +363,37 @@ export default function Devices() {
     }
   };
 
+  const handleAddDevice = () => {
+    setIsAddingDevice(true);
+  };
+
+  const handleSaveNewDevice = async (deviceFields: Partial<Device>) => {
+    try {
+      const response = await fetch('http://localhost:3000/api/devices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(deviceFields),
+      });
+
+      if (!response.ok) throw new Error('Failed to create device');
+
+      const newDevice = await response.json();
+
+      setDevices(prev => [...prev, {
+        ...newDevice,
+        lastSeen: new Date(newDevice.lastSeen),
+        createdAt: new Date(newDevice.createdAt)
+      }]);
+      setIsAddingDevice(false);
+    } catch (error) {
+      console.error('Create error:', error);
+      alert('添加设备失败');
+    }
+  };
+
   const getStatusColor = (status: Device['status']) => {
     switch (status) {
       case 'online':
@@ -443,63 +477,87 @@ export default function Devices() {
       {/* 页面标题和操作 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className={`text-3xl font-bold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+            }`}>
             设备管理
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className={`mt-2 ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+            }`}>
             管理和监控所有开发设备
           </p>
         </div>
-        <button className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+        <button
+          onClick={handleAddDevice}
+          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+        >
           <Plus className="h-5 w-5 mr-2" />
           添加设备
         </button>
       </div>
 
       {/* 设备列表 */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700">
+      <div className={`rounded-lg shadow overflow-visible ${theme === 'kanban'
+        ? 'bg-gray-800 border border-gray-700'
+        : 'gradient-card'
+        }`}>
+        <table className={`min-w-full ${theme === 'kanban' ? 'divide-y divide-gray-700' : 'divide-y divide-gray-200'
+          }`}>
+          <thead className={`${theme === 'kanban' ? 'bg-gray-900/50' : 'bg-gray-50/50'
+            }`}>
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 设备
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 角色
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 类型/系统
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 状态
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 当前工作
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
                 最后活跃
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className={`px-6 py-3 text-right text-xs font-medium uppercase tracking-wider ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                }`}>
                 操作
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          <tbody className={`${theme === 'kanban' ? 'divide-y divide-gray-700' : 'bg-white/50 divide-y divide-gray-200'
+            }`}>
             {devices.map((device) => (
-              <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              <tr key={device.id} className={`${theme === 'kanban' ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50/50'
+                }`}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="relative">
-                      <Monitor className={`h-10 w-10 ${getIconColor(device.status)}`} />
-                      <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 rounded-full p-0.5 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <OSIcon os={device.os} className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <div className="relative group">
+                      <Monitor className={`h-10 w-10 ${getIconColor(device.status)} transition-transform duration-200 group-hover:scale-105`} />
+                      <div className={`absolute -bottom-1 -right-1 rounded-full p-1 shadow-lg backdrop-blur-sm transition-all duration-200 group-hover:ring-4 group-hover:shadow-xl ${theme === 'kanban'
+                        ? 'bg-gray-800 ring-2 ring-gray-700/90'
+                        : 'bg-white ring-2 ring-white/90'
+                        }`}>
+                        <OSIcon os={device.os} className="w-4 h-4" />
                       </div>
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className={`text-sm font-medium ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                        }`}>
                         {device.name}
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className={`text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                         {device.ip}
                       </div>
                     </div>
@@ -516,17 +574,20 @@ export default function Devices() {
                   })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900 dark:text-white">
+                  <div className={`text-sm ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                    }`}>
                     {getDeviceTypeText(device.type)}
                   </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className={`text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
                     {device.os}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className={`h-2 w-2 rounded-full ${getStatusColor(device.status)} mr-2`}></div>
-                    <span className="text-sm text-gray-900 dark:text-white">
+                    <span className={`text-sm ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                      }`}>
                       {getStatusText(device.status)}
                     </span>
                   </div>
@@ -534,18 +595,22 @@ export default function Devices() {
                 <td className="px-6 py-4">
                   {device.currentProject ? (
                     <div>
-                      <div className="text-sm text-gray-900 dark:text-white">
+                      <div className={`text-sm ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                        }`}>
                         {device.currentProject}
                       </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className={`text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                         {device.currentModule}
                       </div>
                     </div>
                   ) : (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">-</span>
+                    <span className={`text-sm ${theme === 'kanban' ? 'text-gray-500' : 'text-gray-400'
+                      }`}>-</span>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                <td className={`px-6 py-4 whitespace-nowrap text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
                   {formatLastSeen(device.lastSeen)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
@@ -554,38 +619,56 @@ export default function Devices() {
                       e.stopPropagation()
                       setOpenMenuId(openMenuId === device.id ? null : device.id)
                     }}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className={`focus:outline-none p-1 rounded-full ${theme === 'kanban'
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
+                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                      }`}
                   >
                     <MoreVertical className="h-5 w-5" />
                   </button>
 
                   {openMenuId === device.id && (
                     <div
-                      className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700"
+                      className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg z-[60] border ${theme === 'kanban'
+                        ? 'bg-gray-800 border-gray-700'
+                        : 'bg-white border-gray-200'
+                        }`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="py-1">
                         <button
                           onClick={() => handleViewDetails(device.id)}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
+                              ? 'text-gray-200 hover:bg-gray-700'
+                              : 'text-gray-700 hover:bg-gray-100'
+                            }`}
                         >
                           详情
                         </button>
                         <button
                           onClick={() => window.open(`/device/${device.id}/hud`, '_blank')}
-                          className="block w-full text-left px-4 py-2 text-sm text-cyan-600 dark:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+                          className={`block w-full text-left px-4 py-2 text-sm font-medium ${theme === 'kanban'
+                              ? 'text-cyan-400 hover:bg-gray-700'
+                              : 'text-cyan-600 hover:bg-gray-100'
+                            }`}
                         >
                           工作台
                         </button>
                         <button
                           onClick={() => handleEditDevice(device)}
-                          className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
+                              ? 'text-gray-200 hover:bg-gray-700'
+                              : 'text-gray-700 hover:bg-gray-100'
+                            }`}
                         >
                           编辑
                         </button>
                         <button
                           onClick={() => handleDeleteDevice(device.id)}
-                          className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
+                              ? 'text-red-400 hover:bg-gray-700'
+                              : 'text-red-600 hover:bg-gray-100'
+                            }`}
                         >
                           删除
                         </button>
@@ -613,6 +696,14 @@ export default function Devices() {
           device={editDevice}
           onClose={() => setEditDevice(null)}
           onSave={handleSaveDevice}
+        />
+      )}
+
+      {/* 添加设备模态框 */}
+      {isAddingDevice && (
+        <DeviceEditModal
+          onClose={() => setIsAddingDevice(false)}
+          onSave={handleSaveNewDevice}
         />
       )}
 

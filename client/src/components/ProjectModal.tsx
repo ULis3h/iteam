@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import type { Project } from '../types'
+import { useTheme } from '../contexts/ThemeContext'
 
 interface ProjectModalProps {
   isOpen: boolean
@@ -20,6 +21,7 @@ export interface ProjectFormData {
 }
 
 export default function ProjectModal({ isOpen, onClose, onSubmit, project, title }: ProjectModalProps) {
+  const { theme } = useTheme()
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
     description: '',
@@ -121,10 +123,13 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className={`rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto ${theme === 'kanban' ? 'bg-gray-800' : 'bg-white dark:bg-gray-800'
+        }`}>
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
+        <div className={`flex items-center justify-between p-6 border-b ${theme === 'kanban' ? 'border-gray-700' : 'border-gray-200 dark:border-gray-700'
+          }`}>
+          <h2 className={`text-2xl font-bold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-900 dark:text-white'
+            }`}>{title}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -138,7 +143,8 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* 项目名称 */}
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="name" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+              }`}>
               项目名称 <span className="text-red-500">*</span>
             </label>
             <input
@@ -146,9 +152,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
               id="name"
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
-                errors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white' : 'dark:bg-gray-700 dark:text-white'
+                } ${errors.name ? 'border-red-500' : theme === 'kanban' ? 'border-gray-600' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="输入项目名称"
               disabled={isSubmitting}
             />
@@ -157,7 +163,8 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
 
           {/* 项目描述 */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="description" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+              }`}>
               项目描述
             </label>
             <textarea
@@ -165,9 +172,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               rows={3}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
-                errors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white' : 'dark:bg-gray-700 dark:text-white'
+                } ${errors.description ? 'border-red-500' : theme === 'kanban' ? 'border-gray-600' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="输入项目描述（可选）"
               disabled={isSubmitting}
             />
@@ -176,7 +183,8 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
 
           {/* 仓库地址 */}
           <div>
-            <label htmlFor="repository" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label htmlFor="repository" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+              }`}>
               仓库地址
             </label>
             <input
@@ -184,9 +192,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
               id="repository"
               value={formData.repository}
               onChange={(e) => handleChange('repository', e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
-                errors.repository ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white' : 'dark:bg-gray-700 dark:text-white'
+                } ${errors.repository ? 'border-red-500' : theme === 'kanban' ? 'border-gray-600' : 'border-gray-300 dark:border-gray-600'
+                }`}
               placeholder="https://github.com/user/repo"
               disabled={isSubmitting}
             />
@@ -197,14 +205,16 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* 状态 */}
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="status" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+                }`}>
                 状态
               </label>
               <select
                 id="status"
                 value={formData.status}
                 onChange={(e) => handleChange('status', e.target.value as any)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white border-gray-600' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+                  }`}
                 disabled={isSubmitting}
               >
                 <option value="active">进行中</option>
@@ -215,7 +225,8 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
 
             {/* 开始时间 */}
             <div>
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="startDate" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+                }`}>
                 开始时间
               </label>
               <input
@@ -223,14 +234,16 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
                 id="startDate"
                 value={formData.startDate}
                 onChange={(e) => handleChange('startDate', e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white border-gray-600' : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+                  }`}
                 disabled={isSubmitting || !!project} // 编辑时不可修改开始时间
               />
             </div>
 
             {/* 结束时间 */}
             <div>
-              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="endDate" className={`block text-sm font-medium mb-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-700 dark:text-gray-300'
+                }`}>
                 结束时间
               </label>
               <input
@@ -238,9 +251,9 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
                 id="endDate"
                 value={formData.endDate}
                 onChange={(e) => handleChange('endDate', e.target.value)}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
-                  errors.endDate ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${theme === 'kanban' ? 'bg-gray-700 text-white' : 'dark:bg-gray-700 dark:text-white'
+                  } ${errors.endDate ? 'border-red-500' : theme === 'kanban' ? 'border-gray-600' : 'border-gray-300 dark:border-gray-600'
+                  }`}
                 disabled={isSubmitting}
               />
               {errors.endDate && <p className="mt-1 text-sm text-red-500">{errors.endDate}</p>}
@@ -259,7 +272,10 @@ export default function ProjectModal({ isOpen, onClose, onSubmit, project, title
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              className={`px-6 py-2 border rounded-lg ${theme === 'kanban'
+                  ? 'border-gray-600 text-gray-300 hover:bg-gray-700'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
               disabled={isSubmitting}
             >
               取消

@@ -4,26 +4,33 @@ import { Device, DeviceRole, Document } from '../types';
 import { getAuthHeaders } from '../contexts/AuthContext';
 
 interface DeviceEditModalProps {
-    device: Device;
+    device?: Device; // Optional for add mode
     onClose: () => void;
     onSave: (updatedDevice: Partial<Device>) => Promise<void>;
 }
 
-const ROLES: { id: DeviceRole; name: string; icon: string; color: string }[] = [
-    { id: 'frontend', name: '前端工程师', icon: '🎨', color: 'bg-blue-100 text-blue-700' },
-    { id: 'backend', name: '后端工程师', icon: '⚙️', color: 'bg-green-100 text-green-700' },
-    { id: 'fullstack', name: '全栈工程师', icon: '🚀', color: 'bg-purple-100 text-purple-700' },
-    { id: 'devops', name: 'DevOps工程师', icon: '🔧', color: 'bg-orange-100 text-orange-700' },
-    { id: 'qa', name: '测试工程师', icon: '🧪', color: 'bg-yellow-100 text-yellow-700' },
-    { id: 'architect', name: '架构师', icon: '🏛️', color: 'bg-red-100 text-red-700' },
-    { id: 'pm', name: '项目经理', icon: '📊', color: 'bg-pink-100 text-pink-700' },
-    { id: 'designer', name: 'UI/UX设计师', icon: '✨', color: 'bg-cyan-100 text-cyan-700' },
-];
+const ROLES: {
+    id: DeviceRole;
+    name: string;
+    icon: string;
+    gradient: string;
+    shadowColor: string;
+}[] = [
+        { id: 'frontend', name: '前端工程师', icon: '🎨', gradient: 'from-blue-500 to-cyan-500', shadowColor: 'shadow-blue-500/50' },
+        { id: 'backend', name: '后端工程师', icon: '⚙️', gradient: 'from-green-500 to-emerald-500', shadowColor: 'shadow-green-500/50' },
+        { id: 'fullstack', name: '全栈工程师', icon: '🚀', gradient: 'from-purple-500 to-pink-500', shadowColor: 'shadow-purple-500/50' },
+        { id: 'devops', name: 'DevOps工程师', icon: '🔧', gradient: 'from-orange-500 to-red-500', shadowColor: 'shadow-orange-500/50' },
+        { id: 'qa', name: '测试工程师', icon: '🧪', gradient: 'from-yellow-500 to-amber-500', shadowColor: 'shadow-yellow-500/50' },
+        { id: 'architect', name: '架构师', icon: '🏛️', gradient: 'from-red-500 to-rose-500', shadowColor: 'shadow-red-500/50' },
+        { id: 'pm', name: '项目经理', icon: '📊', gradient: 'from-indigo-500 to-blue-500', shadowColor: 'shadow-indigo-500/50' },
+        { id: 'designer', name: 'UI/UX设计师', icon: '✨', gradient: 'from-pink-500 to-purple-500', shadowColor: 'shadow-pink-500/50' },
+    ];
 
 const DeviceEditModal: React.FC<DeviceEditModalProps> = ({ device, onClose, onSave }) => {
-    const [role, setRole] = useState<DeviceRole | undefined>(device.role);
-    const [selectedSkills, setSelectedSkills] = useState<string[]>(device.skills || []);
-    const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>(device.documentIds || []);
+    const isAddMode = !device;
+    const [role, setRole] = useState<DeviceRole | undefined>(device?.role);
+    const [selectedSkills, setSelectedSkills] = useState<string[]>(device?.skills || []);
+    const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>(device?.documentIds || []);
     const [availableSkills, setAvailableSkills] = useState<string[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [loading, setLoading] = useState(false);
@@ -106,9 +113,9 @@ const DeviceEditModal: React.FC<DeviceEditModalProps> = ({ device, onClose, onSa
                 <div className="flex justify-between items-center p-6 border-b border-gray-100">
                     <div>
                         <h2 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                            编辑设备配置
+                            {isAddMode ? '添加设备' : '编辑设备配置'}
                         </h2>
-                        <p className="text-sm text-gray-500 mt-1">{device.name}</p>
+                        {!isAddMode && <p className="text-sm text-gray-500 mt-1">{device?.name}</p>}
                     </div>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors">
                         <X size={20} />
@@ -118,22 +125,30 @@ const DeviceEditModal: React.FC<DeviceEditModalProps> = ({ device, onClose, onSa
                 <div className="p-6 space-y-8">
                     {/* Role Selection */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-3">团队角色</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">团队角色</label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {ROLES.map((r) => (
                                 <button
                                     key={r.id}
                                     onClick={() => setRole(r.id)}
                                     className={`
-                    flex flex-col items-center justify-center p-3 rounded-lg border transition-all duration-200
+                    group relative flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300
                     ${role === r.id
-                                            ? `${r.color} border-current ring-1 ring-offset-1 ring-current bg-opacity-10`
-                                            : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                            ? `bg-gradient-to-br ${r.gradient} text-white shadow-lg ${r.shadowColor} scale-105 ring-2 ring-white/50`
+                                            : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-md hover:scale-102'
                                         }
                   `}
                                 >
-                                    <span className="text-2xl mb-2">{r.icon}</span>
-                                    <span className="text-xs font-medium">{r.name}</span>
+                                    {role === r.id && (
+                                        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent opacity-50"></div>
+                                    )}
+                                    <span className="text-3xl mb-2 relative z-10 transform transition-transform group-hover:scale-110">{r.icon}</span>
+                                    <span className="text-xs font-medium relative z-10 text-center">{r.name}</span>
+                                    {role === r.id && (
+                                        <div className="absolute -top-1 -right-1 w-5 h-5 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center shadow-lg">
+                                            <Check size={12} className="text-current" />
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -203,20 +218,20 @@ const DeviceEditModal: React.FC<DeviceEditModalProps> = ({ device, onClose, onSa
                                             />
                                         </div>
                                         <div>
-                                            <div className="text-sm font-medium text-gray-900 group-hover:text-indigo-600 transition-colors">
+                                            <div className="text-sm font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors">
                                                 {doc.title}
                                             </div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className={`
-                          text-[10px] px-1.5 py-0.5 rounded
-                          ${doc.category === 'standard' ? 'bg-blue-100 text-blue-700' :
-                                                        doc.category === 'tech' ? 'bg-purple-100 text-purple-700' :
-                                                            doc.category === 'bug' ? 'bg-red-100 text-red-700' :
-                                                                'bg-gray-100 text-gray-700'}
+                          text-[11px] px-2 py-0.5 rounded font-medium
+                          ${doc.category === 'standard' ? 'bg-blue-100 text-blue-800' :
+                                                        doc.category === 'tech' ? 'bg-purple-100 text-purple-800' :
+                                                            doc.category === 'bug' ? 'bg-red-100 text-red-800' :
+                                                                'bg-gray-100 text-gray-800'}
                         `}>
                                                     {doc.category}
                                                 </span>
-                                                <span className="text-xs text-gray-400 truncate max-w-[200px]">
+                                                <span className="text-xs text-gray-600 truncate max-w-[200px]">
                                                     {doc.id}
                                                 </span>
                                             </div>

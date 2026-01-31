@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Device, DeviceRole } from '../../types';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface TopologyGraphProps {
     devices: Device[];
@@ -7,34 +8,35 @@ interface TopologyGraphProps {
 
 // Role group definitions with positions
 const ROLE_GROUPS = {
-    planning: { x: 400, y: 100, label: 'Planning', roles: ['pm', 'architect'] },
-    creative: { x: 150, y: 300, label: 'Creative', roles: ['designer'] },
-    dev: { x: 650, y: 300, label: 'Development', roles: ['frontend', 'backend', 'fullstack'] },
-    ops: { x: 400, y: 500, label: 'Operations', roles: ['devops', 'qa'] },
+    planning: { x: 400, y: 100, label: 'PLANNING', roles: ['pm', 'architect'], icon: '📋' },
+    creative: { x: 150, y: 300, label: 'CREATIVE', roles: ['designer'], icon: '🎨' },
+    dev: { x: 650, y: 300, label: 'DEVELOPMENT', roles: ['frontend', 'backend', 'fullstack'], icon: '💻' },
+    ops: { x: 400, y: 500, label: 'OPERATIONS', roles: ['devops', 'qa'], icon: '⚙️' },
 };
 
-// Define connections between groups for animation
+// Define connections between groups
 const CONNECTIONS = [
-    { from: 'planning', to: 'creative', color: '#ec4899' }, // Pink
-    { from: 'planning', to: 'dev', color: '#6366f1' },     // Indigo
-    { from: 'creative', to: 'dev', color: '#8b5cf6' },    // Violet
-    { from: 'dev', to: 'ops', color: '#22c55e' },        // Green
-    { from: 'ops', to: 'planning', color: '#eab308' },    // Yellow (Feedback loop)
+    { from: 'planning', to: 'creative', color: '#ec4899' },
+    { from: 'planning', to: 'dev', color: '#8b5cf6' },
+    { from: 'creative', to: 'dev', color: '#06b6d4' },
+    { from: 'dev', to: 'ops', color: '#22c55e' },
+    { from: 'ops', to: 'planning', color: '#f97316' },
 ];
 
 const TopologyGraph: React.FC<TopologyGraphProps> = ({ devices }) => {
-    // Generate role-based nodes
-    const nodes = useMemo(() => {
-        const roleNodes: { id: string; x: number; y: number; role: DeviceRole; device: Device }[] = [];
+    const { theme } = useTheme();
+    const isDark = theme === 'kanban';
+    const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
-        // Group devices by role category to distribute them around the group center
+    // Generate role-based nodes grouped by category
+    const nodesByGroup = useMemo(() => {
+        const grouped: Record<string, { id: string; x: number; y: number; role: DeviceRole; device: Device }[]> = {};
         const groupCounts: Record<string, number> = {};
 
         devices.forEach(device => {
             if (!device.role) return;
 
-            // Find which group this role belongs to
-            let groupKey = 'dev'; // default
+            let groupKey = 'dev';
             for (const [key, config] of Object.entries(ROLE_GROUPS)) {
                 if (config.roles.includes(device.role)) {
                     groupKey = key;
@@ -42,16 +44,18 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ devices }) => {
                 }
             }
 
+            if (!grouped[groupKey]) grouped[groupKey] = [];
             groupCounts[groupKey] = (groupCounts[groupKey] || 0) + 1;
             const index = groupCounts[groupKey] - 1;
             const group = ROLE_GROUPS[groupKey as keyof typeof ROLE_GROUPS];
 
-            // Calculate simple offset based on index
-            const offsetStep = 60;
-            const offsetX = (index % 3 - 1) * offsetStep;
-            const offsetY = (Math.floor(index / 3)) * offsetStep + 40;
+            // Calculate position in a circular pattern around the hub
+            const angle = (index * (2 * Math.PI / 4)) - Math.PI / 2;
+            const radius = 120;
+            const offsetX = Math.cos(angle) * radius;
+            const offsetY = Math.sin(angle) * radius;
 
-            roleNodes.push({
+            grouped[groupKey].push({
                 id: device.id,
                 x: group.x + offsetX,
                 y: group.y + offsetY,
@@ -60,159 +64,272 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ devices }) => {
             });
         });
 
-        return roleNodes;
+        return grouped;
     }, [devices]);
 
+    const handleHubClick = (groupKey: string) => {
+        setExpandedGroup(expandedGroup === groupKey ? null : groupKey);
+    };
+
+    // Get device count per group
+    const getGroupDeviceCount = (groupKey: string) => {
+        return nodesByGroup[groupKey]?.length || 0;
+    };
+
     return (
-        <div className="w-full h-[600px] bg-slate-50 rounded-xl border border-slate-200 overflow-hidden relative shadow-inner">
-            <svg className="w-full h-full">
+        <div className={`w-full h-[600px] rounded-2xl overflow-hidden relative ${isDark
+            ? 'bg-gray-800/50 backdrop-blur-xl border border-gray-700/50'
+            : 'gradient-card'
+            }`}>
+            <svg className="w-full h-full" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid meet">
                 <defs>
-                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="3" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    {/* Glow filter */}
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="4" result="blur" />
+                        <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
                     </filter>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-                    </marker>
-                    <radialGradient id="hubGradient" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                    </radialGradient>
+
+                    {/* Gradients for each connection color */}
+                    {CONNECTIONS.map((conn, idx) => (
+                        <linearGradient
+                            key={`gradient-${idx}`}
+                            id={`lineGradient-${conn.from}-${conn.to}`}
+                            gradientUnits="userSpaceOnUse"
+                            x1={ROLE_GROUPS[conn.from as keyof typeof ROLE_GROUPS].x}
+                            y1={ROLE_GROUPS[conn.from as keyof typeof ROLE_GROUPS].y}
+                            x2={ROLE_GROUPS[conn.to as keyof typeof ROLE_GROUPS].x}
+                            y2={ROLE_GROUPS[conn.to as keyof typeof ROLE_GROUPS].y}
+                        >
+                            <stop offset="0%" stopColor={conn.color} stopOpacity="0.8" />
+                            <stop offset="100%" stopColor={conn.color} stopOpacity="0.3" />
+                        </linearGradient>
+                    ))}
                 </defs>
 
-                {/* Connections */}
-                {CONNECTIONS.map((conn, idx) => {
-                    const start = ROLE_GROUPS[conn.from as keyof typeof ROLE_GROUPS];
-                    const end = ROLE_GROUPS[conn.to as keyof typeof ROLE_GROUPS];
+                {/* Connections with gradient lines */}
+                <g className={`transition-opacity duration-300 ${expandedGroup ? 'opacity-20' : 'opacity-100'}`}>
+                    {CONNECTIONS.map((conn) => {
+                        const start = ROLE_GROUPS[conn.from as keyof typeof ROLE_GROUPS];
+                        const end = ROLE_GROUPS[conn.to as keyof typeof ROLE_GROUPS];
+                        const pathD = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2} ${(start.y + end.y) / 2 - 30} ${end.x} ${end.y}`;
 
-                    // Bezier curve
-                    const pathD = `M ${start.x} ${start.y} Q ${(start.x + end.x) / 2} ${(start.y + end.y) / 2 - 50} ${end.x} ${end.y}`;
+                        return (
+                            <g key={`${conn.from}-${conn.to}`}>
+                                {/* Base glow line */}
+                                <path
+                                    d={pathD}
+                                    stroke={conn.color}
+                                    strokeWidth="4"
+                                    fill="none"
+                                    strokeOpacity="0.15"
+                                    filter="url(#glow)"
+                                />
+                                {/* Main line */}
+                                <path
+                                    d={pathD}
+                                    stroke={`url(#lineGradient-${conn.from}-${conn.to})`}
+                                    strokeWidth="2"
+                                    fill="none"
+                                />
+                                {/* Animated particle */}
+                                <circle r="4" fill={conn.color} filter="url(#glow)">
+                                    <animateMotion
+                                        dur="3s"
+                                        repeatCount="indefinite"
+                                        path={pathD}
+                                    />
+                                </circle>
+                            </g>
+                        );
+                    })}
+                </g>
+
+                {/* Department Hubs - Clickable */}
+                {Object.entries(ROLE_GROUPS).map(([groupKey, group]) => {
+                    const isExpanded = expandedGroup === groupKey;
+                    const deviceCount = getGroupDeviceCount(groupKey);
 
                     return (
-                        <g key={`${conn.from}-${conn.to}`}>
-                            {/* Base line */}
-                            <path
-                                d={pathD}
-                                stroke={conn.color}
-                                strokeWidth="2"
+                        <g
+                            key={`hub-${group.label}`}
+                            onClick={() => handleHubClick(groupKey)}
+                            className="cursor-pointer"
+                        >
+                            {/* Outer glow ring */}
+                            <circle
+                                cx={group.x}
+                                cy={group.y}
+                                r={isExpanded ? 50 : 35}
                                 fill="none"
-                                strokeOpacity="0.2"
+                                stroke={isExpanded ? '#8b5cf6' : isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)'}
+                                strokeWidth={isExpanded ? 2 : 1}
+                                className="transition-all duration-300"
+                            >
+                                <animate attributeName="r" values={isExpanded ? "50;55;50" : "35;40;35"} dur="4s" repeatCount="indefinite" />
+                            </circle>
+
+                            {/* Core hub - larger and more prominent */}
+                            <circle
+                                cx={group.x}
+                                cy={group.y}
+                                r={isExpanded ? 35 : 28}
+                                fill={isDark ? '#1f2937' : '#ffffff'}
+                                stroke={isExpanded ? '#8b5cf6' : '#6b7280'}
+                                strokeWidth={isExpanded ? 3 : 2}
+                                className="transition-all duration-300 hover:stroke-purple-500"
                             />
 
-                            {/* Animated Dash Flow */}
-                            <path
-                                d={pathD}
-                                stroke={conn.color}
-                                strokeWidth="2"
-                                fill="none"
-                                strokeDasharray="5,10"
-                                className="animate-dash-flow"
-                            >
-                                <animate
-                                    attributeName="stroke-dashoffset"
-                                    from="30"
-                                    to="0"
-                                    dur={`${Math.random() * 2 + 2}s`}
-                                    repeatCount="indefinite"
-                                />
-                            </path>
+                            {/* Inner gradient */}
+                            <circle
+                                cx={group.x}
+                                cy={group.y}
+                                r={isExpanded ? 30 : 22}
+                                fill={isExpanded ? 'rgba(139, 92, 246, 0.2)' : 'rgba(139, 92, 246, 0.1)'}
+                                className="transition-all duration-300"
+                            />
 
-                            {/* Moving Packet */}
-                            <circle r="3" fill={conn.color} filter="url(#glow)">
-                                <animateMotion
-                                    dur="4s"
-                                    repeatCount="indefinite"
-                                    path={pathD}
-                                    keyPoints="0;1"
-                                    keyTimes="0;1"
-                                    calcMode="linear"
-                                />
-                            </circle>
+                            {/* Icon */}
+                            <text
+                                x={group.x}
+                                y={group.y + 6}
+                                textAnchor="middle"
+                                fontSize={isExpanded ? 24 : 20}
+                                className="transition-all duration-300 pointer-events-none"
+                            >
+                                {group.icon}
+                            </text>
+
+                            {/* Label */}
+                            <text
+                                x={group.x}
+                                y={group.y - (isExpanded ? 55 : 45)}
+                                textAnchor="middle"
+                                className={`text-[10px] font-bold tracking-[0.15em] pointer-events-none ${isDark ? 'fill-gray-400' : 'fill-gray-500'
+                                    }`}
+                            >
+                                {group.label}
+                            </text>
+
+                            {/* Device count badge */}
+                            {deviceCount > 0 && (
+                                <g>
+                                    <circle
+                                        cx={group.x + 25}
+                                        cy={group.y - 20}
+                                        r="12"
+                                        fill="#8b5cf6"
+                                    />
+                                    <text
+                                        x={group.x + 25}
+                                        y={group.y - 16}
+                                        textAnchor="middle"
+                                        fontSize="10"
+                                        className="fill-white font-bold pointer-events-none"
+                                    >
+                                        {deviceCount}
+                                    </text>
+                                </g>
+                            )}
+
+                            {/* Expand indicator */}
+                            <text
+                                x={group.x}
+                                y={group.y + (isExpanded ? 55 : 45)}
+                                textAnchor="middle"
+                                fontSize="10"
+                                className={`pointer-events-none ${isDark ? 'fill-gray-500' : 'fill-gray-400'}`}
+                            >
+                                {isExpanded ? '▲ 收起' : '▼ 展开'}
+                            </text>
                         </g>
                     );
                 })}
 
-                {/* Department Hubs (Connection Anchors) */}
-                {Object.values(ROLE_GROUPS).map((group) => (
-                    <g key={`hub-${group.label}`}>
-                        {/* Outer Glow */}
-                        <circle
-                            cx={group.x}
-                            cy={group.y}
-                            r="40"
-                            fill="url(#hubGradient)"
-                            opacity="0.1"
-                            className="animate-pulse"
-                        />
-                        {/* Core Hub */}
-                        <circle
-                            cx={group.x}
-                            cy={group.y}
-                            r="10"
-                            fill="white"
-                            stroke="#e2e8f0"
-                            strokeWidth="2"
-                        />
-                        <text
-                            x={group.x}
-                            y={group.y - 40}
-                            textAnchor="middle"
-                            className="text-xs font-bold fill-slate-400 uppercase tracking-widest"
-                        >
-                            {group.label}
-                        </text>
-                    </g>
-                ))}
-
-                {/* Device Nodes */}
-                {nodes.map((node) => (
-                    <g key={node.id} transform={`translate(${node.x}, ${node.y})`}>
+                {/* Device Nodes - Only show when group is expanded */}
+                {expandedGroup && nodesByGroup[expandedGroup]?.map((node) => (
+                    <g
+                        key={node.id}
+                        transform={`translate(${node.x}, ${node.y})`}
+                        className="cursor-pointer animate-fade-in"
+                    >
                         {/* Pulse effect for online devices */}
                         {node.device.status === 'online' && (
-                            <circle r="25" fill={getRoleColor(node.role)} opacity="0.2">
-                                <animate attributeName="r" values="25;35;25" dur="3s" repeatCount="indefinite" />
-                                <animate attributeName="opacity" values="0.2;0;0.2" dur="3s" repeatCount="indefinite" />
+                            <circle r="28" fill={getRoleColor(node.role)} opacity="0.15">
+                                <animate attributeName="r" values="28;38;28" dur="2s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.15;0;0.15" dur="2s" repeatCount="indefinite" />
                             </circle>
                         )}
 
-                        {/* Main Node Circle */}
+                        {/* Main Node */}
                         <circle
                             r="24"
-                            fill="white"
+                            fill={isDark ? '#1f2937' : '#ffffff'}
                             stroke={getRoleColor(node.role)}
                             strokeWidth="3"
-                            className="drop-shadow-sm cursor-pointer hover:drop-shadow-lg transition-all"
+                        />
+
+                        {/* Inner colored circle */}
+                        <circle
+                            r="18"
+                            fill={getRoleColor(node.role)}
+                            opacity="0.15"
                         />
 
                         {/* Icon */}
-                        <text x="0" y="5" textAnchor="middle" fontSize="16">
+                        <text x="0" y="6" textAnchor="middle" fontSize="18">
                             {getRoleIcon(node.role)}
                         </text>
 
-                        {/* Label name */}
-                        <text x="0" y="40" textAnchor="middle" fontSize="10" className="fill-slate-600 font-medium">
+                        {/* Label */}
+                        <text
+                            x="0"
+                            y="42"
+                            textAnchor="middle"
+                            fontSize="11"
+                            className={`font-medium ${isDark ? 'fill-gray-300' : 'fill-gray-600'}`}
+                        >
                             {node.device.name}
                         </text>
+
+                        {/* Status indicator */}
+                        <circle
+                            cx="16"
+                            cy="-16"
+                            r="5"
+                            fill={node.device.status === 'online' ? '#22c55e' : '#6b7280'}
+                            stroke={isDark ? '#1f2937' : '#ffffff'}
+                            strokeWidth="2"
+                        />
                     </g>
                 ))}
             </svg>
+
+            {/* Click hint */}
+            {!expandedGroup && (
+                <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full text-sm ${isDark ? 'bg-gray-700/80 text-gray-300' : 'bg-white/80 text-gray-600'
+                    } backdrop-blur-sm`}>
+                    点击节点查看设备
+                </div>
+            )}
         </div>
     );
 };
 
-// Helper to get color by role
 function getRoleColor(role: DeviceRole): string {
     const colors: Record<DeviceRole, string> = {
-        frontend: '#3b82f6', // blue-500
-        backend: '#22c55e',  // green-500
-        fullstack: '#a855f7', // purple-500
-        devops: '#f97316',   // orange-500
-        qa: '#eab308',       // yellow-500
-        architect: '#ef4444', // red-500
-        pm: '#ec4899',       // pink-500
-        designer: '#06b6d4',  // cyan-500
+        frontend: '#3b82f6',
+        backend: '#22c55e',
+        fullstack: '#a855f7',
+        devops: '#f97316',
+        qa: '#eab308',
+        architect: '#ef4444',
+        pm: '#ec4899',
+        designer: '#06b6d4',
     };
-    return colors[role] || '#94a3b8';
+    return colors[role] || '#8b5cf6';
 }
 
 function getRoleIcon(role: DeviceRole): string {

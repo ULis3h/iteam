@@ -3,13 +3,15 @@ import { FolderGit2, Plus, GitBranch, Users, TrendingUp, Edit2, Trash2 } from 'l
 import type { Project } from '../types'
 import projectService from '../services/projectService'
 import ProjectModal, { type ProjectFormData } from '../components/ProjectModal'
+import { useTheme } from '../contexts/ThemeContext'
 
 export default function Projects() {
+  const { theme } = useTheme()
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [deletingProject, setDeletingProject] = useState<Project | null>(null)
+
 
   // 获取项目列表
   const fetchProjects = async () => {
@@ -140,32 +142,58 @@ export default function Projects() {
       {/* 页面标题和操作 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            项目管理
+          <h1 className={`text-3xl font-bold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+            }`}>
+            项目
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            追踪和管理所有开发项目
+          <p className={`mt-2 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+            管理您的项目并跟踪其进度
           </p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          className={`flex items-center px-4 py-2 rounded-lg transition-colors ${theme === 'kanban'
+            ? 'bg-gray-700 text-white hover:bg-gray-600 border border-gray-600'
+            : 'bg-primary-600 text-white hover:bg-primary-700'
+            }`}
         >
           <Plus className="h-5 w-5 mr-2" />
-          新建项目
+          创建项目
         </button>
       </div>
 
       {/* 项目列表 */}
       {projects.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
-          <FolderGit2 className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+        <div className={`text-center py-12 ${theme === 'kanban'
+          ? ''
+          : 'gradient-card rounded-lg'
+          }`}>
+          <div className="mb-6 flex justify-center">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-100'
+              }`}>
+              <Plus className={`h-8 w-8 ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-400'
+                }`} />
+            </div>
+          </div>
+          <h3 className={`text-lg font-medium mb-2 ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+            }`}>
             还没有项目
           </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            点击上方"新建项目"按钮创建第一个项目
+          <p className={`mb-6 ${theme === 'kanban' ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+            通过创建您的第一个项目开始。
           </p>
+          <button
+            onClick={openCreateModal}
+            className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${theme === 'kanban'
+              ? 'bg-gray-700 text-white hover:bg-gray-600'
+              : 'bg-gray-800 text-white hover:bg-gray-700'
+              }`}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            创建您的第一个项目
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
@@ -177,23 +205,34 @@ export default function Projects() {
             return (
               <div
                 key={project.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow"
+                className={`rounded-lg ${theme === 'kanban'
+                  ? 'bg-gray-800'
+                  : 'gradient-card hover:shadow-lg'
+                  } transition-shadow`}
               >
                 <div className="p-6">
                   {/* 项目头部 */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-start space-x-4 flex-1">
-                      <div className="p-3 bg-primary-100 dark:bg-primary-900 rounded-lg">
-                        <FolderGit2 className="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                      <div className={`p-3 rounded-lg ${theme === 'kanban'
+                        ? 'bg-gray-700'
+                        : 'bg-primary-100'
+                        }`}>
+                        <FolderGit2 className={`h-6 w-6 ${theme === 'kanban'
+                          ? 'text-gray-400'
+                          : 'text-primary-600'
+                          }`} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-3">
-                          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                          <h3 className={`text-xl font-semibold ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-800'
+                            }`}>
                             {project.name}
                           </h3>
                           {getStatusBadge(project.status)}
                         </div>
-                        <p className="text-gray-600 dark:text-gray-400 mt-1">
+                        <p className={`mt-1 ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
                           {project.description || '暂无描述'}
                         </p>
                         {project.repository && (
@@ -201,7 +240,10 @@ export default function Projects() {
                             href={project.repository}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-primary-600 dark:text-primary-400 hover:underline mt-2 inline-flex items-center"
+                            className={`text-sm hover:underline mt-2 inline-flex items-center ${theme === 'kanban'
+                              ? 'text-gray-400 hover:text-gray-300'
+                              : 'text-primary-600'
+                              }`}
                           >
                             <GitBranch className="h-4 w-4 mr-1" />
                             {project.repository}
@@ -214,14 +256,20 @@ export default function Projects() {
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => openEditModal(project)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        className={`p-2 rounded-lg transition-colors ${theme === 'kanban'
+                          ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
                         title="编辑项目"
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => handleDeleteProject(project)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        className={`p-2 rounded-lg transition-colors ${theme === 'kanban'
+                          ? 'text-gray-400 hover:text-red-400 hover:bg-gray-700'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
                         title="删除项目"
                       >
                         <Trash2 className="h-5 w-5" />
@@ -231,7 +279,8 @@ export default function Projects() {
 
                   {/* 统计信息 */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className={`rounded-lg p-4 ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-50 dark:bg-gray-700'
+                      }`}>
                       <div className="flex items-center text-gray-600 dark:text-gray-400 text-sm mb-1">
                         <GitBranch className="h-4 w-4 mr-1" />
                         提交数
@@ -240,7 +289,8 @@ export default function Projects() {
                         {totalCommits}
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className={`rounded-lg p-4 ${theme === 'kanban' ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 dark:bg-gray-700'
+                      }`}>
                       <div className="flex items-center text-gray-600 dark:text-gray-400 text-sm mb-1">
                         <Users className="h-4 w-4 mr-1" />
                         贡献者
@@ -249,7 +299,8 @@ export default function Projects() {
                         {project.contributions.length}
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className={`rounded-lg p-4 ${theme === 'kanban' ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 dark:bg-gray-700'
+                      }`}>
                       <div className="flex items-center text-gray-600 dark:text-gray-400 text-sm mb-1">
                         <TrendingUp className="h-4 w-4 mr-1" />
                         新增代码
@@ -258,7 +309,8 @@ export default function Projects() {
                         +{lines.added.toLocaleString()}
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <div className={`rounded-lg p-4 ${theme === 'kanban' ? 'bg-gray-700 border border-gray-600' : 'bg-gray-50 dark:bg-gray-700'
+                      }`}>
                       <div className="flex items-center text-gray-600 dark:text-gray-400 text-sm mb-1">
                         <TrendingUp className="h-4 w-4 mr-1 rotate-180" />
                         删除代码
@@ -271,21 +323,26 @@ export default function Projects() {
 
                   {/* 当前任务 */}
                   {activeTasks.length > 0 && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                    <div className={`pt-4 border-t ${theme === 'kanban' ? 'border-gray-700' : 'border-gray-200 dark:border-gray-700'
+                      }`}>
+                      <h4 className={`text-sm font-medium mb-3 ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-900 dark:text-white'
+                        }`}>
                         当前任务
                       </h4>
                       <div className="space-y-2">
                         {activeTasks.map((task) => (
                           <div
                             key={task.id}
-                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                            className={`flex items-center justify-between p-3 rounded-lg ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-50 dark:bg-gray-700'
+                              }`}
                           >
                             <div>
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              <span className={`text-sm font-medium ${theme === 'kanban' ? 'text-gray-100' : 'text-gray-900 dark:text-white'
+                                }`}>
                                 {task.module}
                               </span>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className={`text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600 dark:text-gray-400'
+                                }`}>
                                 {task.description}
                               </p>
                               {task.device && (
@@ -302,8 +359,10 @@ export default function Projects() {
                   )}
 
                   {/* 项目时间线 */}
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <div className={`pt-4 mt-4 border-t ${theme === 'kanban' ? 'border-gray-700' : 'border-gray-200 dark:border-gray-700'
+                    }`}>
+                    <div className={`flex items-center justify-between text-sm ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-600 dark:text-gray-400'
+                      }`}>
                       <span>
                         开始时间: {project.startDate.toLocaleDateString('zh-CN')}
                       </span>

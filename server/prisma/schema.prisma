@@ -24,27 +24,64 @@ model User {
   @@map("users")
 }
 
-// 设备模型
-model Device {
+// Agent模板 - BMAD风格的Agent定义
+model AgentTemplate {
   id            String   @id @default(uuid())
-  name          String   @unique
-  type          String   // vscode, windsurf, antigravity, claude-code, other
-  role          String?  // 团队角色: frontend, backend, fullstack, devops, qa, architect, pm, designer
-  skills        String?  // JSON数组: 分配的技能列表
-  documentIds   String?  // JSON数组: 关联的文档ID列表
-  status        String   @default("offline") // online, offline, idle, working
-  os            String
-  ip            String
-  currentProject String?
-  currentModule  String?
-  metadata      String?  // JSON string for additional info
-  lastSeen      DateTime @default(now())
+  code          String   @unique  // pm, architect, dev, qa, ux, devops, sm
+  name          String            // "John", "Winston", "Amelia"
+  title         String            // "Product Manager", "System Architect"
+  icon          String            // emoji: 📋, 🏗️, 💻
+
+  // Persona 配置
+  role          String            // 角色描述
+  experience    String?           // 经验描述
+  expertise     String            // JSON: 专长领域数组
+  communication String?           // 沟通风格
+
+  // 行为配置
+  principles    String            // JSON: 核心原则数组
+  workflows     String            // JSON: 可执行工作流代码数组
+
+  // 系统字段
+  isBuiltIn     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   // Relations
-  contributions Contribution[]
-  tasks         Task[]
+  devices       Device[]
+
+  @@map("agent_templates")
+}
+
+// 设备模型
+model Device {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  type            String   // vscode, windsurf, antigravity, claude-code, other
+  role            String?  // 团队角色: frontend, backend, fullstack, devops, qa, architect, pm, designer
+  skills          String?  // JSON数组: 分配的技能列表
+  documentIds     String?  // JSON数组: 关联的文档ID列表
+  status          String   @default("offline") // online, offline, idle, working
+  os              String
+  ip              String
+  currentProject  String?
+  currentModule   String?
+  metadata        String?  // JSON string for additional info
+  lastSeen        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // BMAD 扩展字段
+  agentTemplateId String?          // 关联的 Agent 模板
+  agentConfig     String?          // JSON: 自定义配置覆盖
+  skillLevel      String   @default("intermediate")  // beginner/intermediate/expert
+
+  // Relations
+  contributions      Contribution[]
+  tasks              Task[]
+  agentTemplate      AgentTemplate?      @relation(fields: [agentTemplateId], references: [id])
+  workflowExecutions WorkflowExecution[]
+  teamMembers        TeamMember[]
 
   @@map("devices")
 }
@@ -60,9 +97,13 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // 复杂度评估 (BMAD Scale-Adaptive)
+  complexity  String?  // small/medium/large/enterprise
+
   // Relations
-  contributions Contribution[]
-  tasks         Task[]
+  contributions      Contribution[]
+  tasks              Task[]
+  workflowExecutions WorkflowExecution[]
 
   @@map("projects")
 }
@@ -113,4 +154,113 @@ model Document {
   updatedAt DateTime @updatedAt
 
   @@map("documents")
+}
+
+// ==================== BMAD 工作流系统 ====================
+
+// 工作流定义
+model Workflow {
+  id            String   @id @default(uuid())
+  code          String   @unique  // create-prd, dev-story, code-review, etc.
+  name          String            // "Create PRD", "Dev Story"
+  description   String
+  phase         Int               // 1-4 (分析/规划/方案/实施)
+
+  // 工作流配置
+  agentCode     String            // 执行此工作流的 Agent 代码
+  steps         String            // JSON: 步骤定义数组
+  inputs        String?           // JSON: 所需输入定义
+  outputs       String?           // JSON: 输出产物定义
+
+  // 依赖关系
+  prerequisites String?           // JSON: 前置工作流代码数组
+
+  // 分类
+  category      String   @default("general")  // quick-flow, full-flow, qa, etc.
+
+  // 系统字段
+  isBuiltIn     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  executions    WorkflowExecution[]
+
+  @@map("workflows")
+}
+
+// 工作流执行实例
+model WorkflowExecution {
+  id          String   @id @default(uuid())
+  workflowId  String
+  projectId   String
+  deviceId    String            // 执行的 Agent/Device
+
+  status      String   @default("pending")  // pending/running/paused/completed/failed
+  progress    Int      @default(0)          // 0-100
+  currentStep Int      @default(0)
+
+  // 执行数据
+  inputs      String?           // JSON: 实际输入
+  outputs     String?           // JSON: 实际输出
+  logs        String?           // JSON: 执行日志数组
+
+  // 时间追踪
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workflow    Workflow @relation(fields: [workflowId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id])
+  device      Device   @relation(fields: [deviceId], references: [id])
+
+  @@map("workflow_executions")
+}
+
+// ==================== BMAD 团队系统 ====================
+
+// 团队定义
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+
+  // 团队配置
+  mode        String   @default("sequential")  // sequential/parallel/collaborative
+
+  // 默认工作流程
+  defaultWorkflows String?      // JSON: 默认工作流代码序列
+
+  // 系统字段
+  isBuiltIn   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  members     TeamMember[]
+
+  @@map("teams")
+}
+
+// 团队成员
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String
+  deviceId  String
+
+  // 成员配置
+  role      String?           // 在团队中的角色
+  priority  Int      @default(0)  // 优先级
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, deviceId])
+  @@map("team_members")
 }

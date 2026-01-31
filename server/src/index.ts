@@ -13,6 +13,9 @@ import projectRoutes from './routes/projects.js'
 import documentRoutes from './routes/documents.js'
 import statsRoutes from './routes/stats.js'
 import rolesRoutes from './routes/roles.js'
+import agentRoutes from './routes/agents.js'
+import workflowRoutes from './routes/workflows.js'
+import teamRoutes from './routes/teams.js'
 import { authMiddleware } from './middleware/auth.js'
 
 // Load environment variables
@@ -69,6 +72,11 @@ app.use('/api/devices', deviceApiKeyMiddleware, deviceRoutes)
 app.use('/api/projects', authMiddleware, projectRoutes)
 app.use('/api/documents', authMiddleware, documentRoutes)
 app.use('/api/stats', authMiddleware, statsRoutes)
+
+// BMAD 路由 - Agent模板、工作流、团队
+app.use('/api/agents', authMiddleware, agentRoutes)
+app.use('/api/workflows', authMiddleware, workflowRoutes)
+app.use('/api/teams', authMiddleware, teamRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {

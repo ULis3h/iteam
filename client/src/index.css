@@ -15,18 +15,20 @@
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    background-size: 400% 400%;
-    animation: gradient 15s ease infinite;
+    position: relative;
+    overflow-x: hidden;
   }
 
   #root {
     width: 100%;
     min-height: 100vh;
+    position: relative;
+    z-index: 1;
   }
 }
 
 @layer components {
+
   /* 玻璃态效果 */
   .glass {
     background: rgba(255, 255, 255, 0.1);
@@ -40,12 +42,15 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* 渐变卡片 */
+  /* 渐变卡片 - 浅色玻璃态效果，匹配浅色粒子背景 */
   .gradient-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.85) 100%);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 8px 32px 0 rgba(31, 38, 135, 0.12),
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
   }
 
   /* 发光按钮 */
@@ -105,9 +110,12 @@
   }
 
   @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
       opacity: 1;
     }
+
     50% {
       opacity: 0.5;
     }
@@ -144,6 +152,7 @@
     0% {
       left: -100%;
     }
+
     100% {
       left: 100%;
     }
@@ -151,6 +160,7 @@
 }
 
 @layer utilities {
+
   /* 滚动条样式 */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
@@ -178,5 +188,166 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
+  }
+
+  /* Kanban Theme Styles */
+  .kanban-theme {
+    background: #2d3748 !important;
+    min-height: 100vh;
+  }
+
+  /* Override solid white backgrounds in kanban theme - but not semi-transparent ones */
+  body.theme-kanban .bg-white:not([class*="bg-white/"]) {
+    background-color: transparent !important;
+  }
+
+  /* Override specific dark mode solid backgrounds */
+  body.theme-kanban [class*="dark:bg-gray-800"]:not([class*="bg-white/"]):not([class*="gradient-card"]) {
+    background-color: transparent !important;
+  }
+
+  /* Remove shadows in kanban theme for cleaner look */
+  body.theme-kanban .shadow:not([class*="shadow-"]),
+  body.theme-kanban .shadow-lg:not(.gradient-card),
+  body.theme-kanban .shadow-xl:not(.gradient-card),
+  body.theme-kanban .shadow-2xl:not(.gradient-card) {
+    box-shadow: none !important;
+  }
+
+  /* Enhance text contrast in kanban theme */
+  body.theme-kanban .text-gray-400 {
+    color: #e5e7eb !important;
+    /* gray-200 */
+  }
+
+  body.theme-kanban .text-gray-300 {
+    color: #f3f4f6 !important;
+    /* gray-100 */
+  }
+
+  body.theme-kanban .text-gray-600 {
+    color: #d1d5db !important;
+    /* gray-300 */
+  }
+
+  body.theme-kanban .text-gray-900 {
+    color: #ffffff !important;
+    /* white */
+  }
+
+  /* Fix hover backgrounds in kanban theme */
+  body.theme-kanban .hover\:bg-gray-50:hover,
+  body.theme-kanban .hover\:bg-gray-100:hover {
+    background-color: #4a5568 !important;
+    /* gray-700 */
+  }
+
+  body.theme-kanban .dark\:hover\:bg-gray-700:hover {
+    background-color: #4a5568 !important;
+    /* gray-700 */
+  }
+
+  /* Fix table header background in kanban theme */
+  body.theme-kanban thead.bg-gray-50,
+  body.theme-kanban thead[class*="bg-gray-50"] {
+    background-color: #4a5568 !important;
+    /* gray-700 */
+  }
+
+  /* Fix modal dialogs in kanban theme - ensure proper dark backgrounds */
+  body.theme-kanban .fixed.inset-0>div.bg-white {
+    background-color: #1f2937 !important;
+    /* gray-800 - main modal body */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .bg-gray-50,
+  body.theme-kanban .fixed.inset-0>div.bg-white [class*="bg-gray-50"] {
+    background-color: #111827 !important;
+    /* gray-900 - sections like header/footer */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .bg-gray-100,
+  body.theme-kanban .fixed.inset-0>div.bg-white [class*="bg-gray-100"] {
+    background-color: #374151 !important;
+    /* gray-700 - skill/doc areas */
+  }
+
+  /* Fix modal text colors in kanban theme for better contrast */
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-gray-700 {
+    color: #e5e7eb !important;
+    /* gray-200 */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-gray-800 {
+    color: #f3f4f6 !important;
+    /* gray-100 */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-gray-900 {
+    color: #ffffff !important;
+    /* white */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-gray-600 {
+    color: #d1d5db !important;
+    /* gray-300 */
+  }
+
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-gray-500 {
+    color: #9ca3af !important;
+    /* gray-400 */
+  }
+
+  /* Fix border colors in modal */
+  body.theme-kanban .fixed.inset-0>div.bg-white .border-gray-100,
+  body.theme-kanban .fixed.inset-0>div.bg-white .border-gray-200 {
+    border-color: #4b5563 !important;
+    /* gray-600 */
+  }
+
+  /* Ensure white text stays white in gradients and special elements */
+  body.theme-kanban .fixed.inset-0>div.bg-white .text-white {
+    color: #ffffff !important;
+  }
+
+  /* Fix dropdown menus in kanban theme */
+  body.theme-kanban .absolute.bg-white.dark\:bg-gray-800 {
+    background-color: #1f2937 !important;
+    /* gray-800 */
+  }
+
+  body.theme-kanban .absolute.bg-white.dark\:bg-gray-800 .text-gray-700 {
+    color: #e5e7eb !important;
+    /* gray-200 */
+  }
+
+  body.theme-kanban .absolute.bg-white.dark\:bg-gray-800 .hover\:bg-gray-100 {
+    transition: background-color 0.15s ease;
+  }
+
+  body.theme-kanban .absolute.bg-white.dark\:bg-gray-800 .hover\:bg-gray-100:hover {
+    background-color: #374151 !important;
+    /* gray-700 */
+  }
+
+  /* Fix icon badge rings in kanban theme for better contrast */
+  body.theme-kanban .relative.group .absolute.ring-2 {
+    background-color: #f3f4f6 !important;
+    /* Light gray background for maximum contrast */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 20px rgba(99, 102, 241, 0.5) !important;
+    /* Strong shadow + white ring + outer glow */
+  }
+
+  body.theme-kanban .relative.group:hover .absolute.ring-2 {
+    background-color: #ffffff !important;
+    /* Pure white on hover */
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 0 4px rgba(255, 255, 255, 1), 0 0 30px rgba(99, 102, 241, 0.8) !important;
+    /* Enhanced glow on hover */
+    transform: scale(1.05);
+  }
+
+  /* Make sure Monitor icons are more visible in kanban theme */
+  body.theme-kanban .relative.group svg[class*="lucide-monitor"] {
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
   }
 }

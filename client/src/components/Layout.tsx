@@ -5,13 +5,17 @@ import {
   Monitor,
   FolderGit2,
   FileText,
-  Sparkles,
   LogOut,
   ChevronDown,
-  Network
+  Network,
+  Palette,
+  Bot,
+  Workflow
 } from 'lucide-react'
 import TeamLogo from './TeamLogo'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
+import ParticleBackground from './ParticleBackground'
 
 interface LayoutProps {
   children: ReactNode
@@ -21,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
 
   const handleLogout = () => {
@@ -30,28 +35,30 @@ export default function Layout({ children }: LayoutProps) {
 
   const navigation = [
     { name: '仪表盘', href: '/', icon: LayoutDashboard, gradient: 'from-blue-400 to-purple-500' },
-    { name: '设备管理', href: '/devices', icon: Monitor, gradient: 'from-green-400 to-cyan-500' },
-    { name: '项目管理', href: '/projects', icon: FolderGit2, gradient: 'from-orange-400 to-pink-500' },
-    { name: '文档中心', href: '/documents', icon: FileText, gradient: 'from-purple-400 to-indigo-500' },
-    { name: '团队拓扑', href: '/topology', icon: Network, gradient: 'from-cyan-400 to-blue-500' },
+    { name: '设备', href: '/devices', icon: Monitor, gradient: 'from-green-400 to-cyan-500' },
+    { name: 'Agent', href: '/agents', icon: Bot, gradient: 'from-yellow-400 to-orange-500' },
+    { name: '工作流', href: '/workflows', icon: Workflow, gradient: 'from-pink-400 to-rose-500' },
+    { name: '项目', href: '/projects', icon: FolderGit2, gradient: 'from-orange-400 to-pink-500' },
+    { name: '文档', href: '/documents', icon: FileText, gradient: 'from-purple-400 to-indigo-500' },
+    { name: '拓扑', href: '/topology', icon: Network, gradient: 'from-cyan-400 to-blue-500' },
   ]
 
   const isActive = (href: string) => location.pathname === href
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* 动态背景 */}
-      <div className="fixed inset-0 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 animate-gradient bg-[length:400%_400%]" />
+      {/* 动态背景 - 根据主题切换 */}
+      {theme === 'default' ? (
+        <ParticleBackground />
+      ) : (
+        <div className="fixed inset-0 bg-gray-800" />
+      )}
 
-      {/* 背景装饰 */}
-      <div className="fixed inset-0 opacity-30">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-float" />
-        <div className="absolute top-40 right-10 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-float" style={{ animationDelay: '2s' }} />
-        <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-float" style={{ animationDelay: '4s' }} />
-      </div>
-
-      {/* 顶部导航栏 - 玻璃态效果 */}
-      <nav className="sticky top-0 z-50 glass border-b border-white/20 backdrop-blur-xl">
+      {/* 顶部导航栏 - 根据主题切换样式 */}
+      <nav className={`sticky top-0 z-50 backdrop-blur-xl border-b shadow-sm ${theme === 'kanban'
+        ? 'bg-gray-900/90 border-gray-700'
+        : 'bg-white/80 border-gray-200/50'
+        }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
@@ -71,12 +78,14 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
 
                 <div>
-                  <h1 className="text-2xl font-bold text-white tracking-tight flex items-center space-x-2">
+                  <h1 className={`text-2xl font-bold tracking-tight flex items-center space-x-2 ${theme === 'kanban' ? 'text-white' : 'text-gray-800'
+                    }`}>
                     <span>iTeam</span>
                     <span className="text-lg opacity-60">×</span>
-                    <span className="text-sm bg-gradient-to-r from-yellow-200 to-yellow-400 bg-clip-text text-transparent font-extrabold">∞</span>
+                    <span className="text-sm bg-gradient-to-r from-yellow-500 to-orange-500 bg-clip-text text-transparent font-extrabold">∞</span>
                   </h1>
-                  <p className="text-xs text-white/70 tracking-wide">一人 · 多设备 · 全协作</p>
+                  <p className={`text-xs tracking-wide ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                    }`}>一人 · 多设备 · 全协作</p>
                 </div>
               </div>
 
@@ -91,7 +100,9 @@ export default function Layout({ children }: LayoutProps) {
                       transition-all duration-300 overflow-hidden
                       ${isActive(item.href)
                         ? 'text-white'
-                        : 'text-white/80 hover:text-white'
+                        : theme === 'kanban'
+                          ? 'text-gray-300 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-800'
                       }
                     `}
                   >
@@ -106,8 +117,7 @@ export default function Layout({ children }: LayoutProps) {
                       group-hover:opacity-70 transition-opacity duration-300 rounded-xl
                     `} />
 
-                    {/* 图标和文字 */}
-                    <item.icon className="relative h-4 w-4 mr-2 z-10" />
+                    {/* 文字 */}
                     <span className="relative z-10">{item.name}</span>
 
                     {/* 光泽效果 */}
@@ -120,19 +130,29 @@ export default function Layout({ children }: LayoutProps) {
             </div>
 
             {/* 右侧状态 */}
-            <div className="flex items-center space-x-4">
-              {/* 装饰性元素 */}
-              <div className="hidden lg:block">
-                <Sparkles className="h-5 w-5 text-yellow-300 animate-pulse" />
-              </div>
+            <div className="flex items-center space-x-4 ml-auto">
+
+              {/* 主题切换按钮 */}
+              <button
+                onClick={toggleTheme}
+                className={`hidden lg:flex items-center justify-center h-10 w-10 rounded-full transition-colors ${theme === 'kanban'
+                  ? 'bg-gray-700 hover:bg-gray-600'
+                  : 'bg-gray-100 hover:bg-gray-200'
+                  }`}
+                title={theme === 'kanban' ? '切换到默认主题' : '切换到看板主题'}
+              >
+                <Palette className="h-5 w-5 text-yellow-500" />
+              </button>
 
               {/* 系统状态 */}
-              <div className="hidden md:flex items-center space-x-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20">
+              <div className={`hidden md:flex items-center space-x-2 px-4 py-2 rounded-full ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-100'
+                }`}>
                 <div className="relative">
-                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full animate-ping absolute" />
-                  <div className="h-2.5 w-2.5 bg-green-400 rounded-full relative" />
+                  <div className="h-2.5 w-2.5 bg-green-500 rounded-full animate-ping absolute" />
+                  <div className="h-2.5 w-2.5 bg-green-500 rounded-full relative" />
                 </div>
-                <span className="text-sm font-medium text-white/90">
+                <span className={`text-sm font-medium ${theme === 'kanban' ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
                   系统运行中
                 </span>
               </div>
@@ -141,15 +161,20 @@ export default function Layout({ children }: LayoutProps) {
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-colors"
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-full transition-colors ${theme === 'kanban'
+                    ? 'bg-gray-700 hover:bg-gray-600'
+                    : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium">
                     {user?.username?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <span className="text-sm font-medium text-white/90 hidden md:block">
+                  <span className={`text-sm font-medium hidden md:block ${theme === 'kanban' ? 'text-gray-200' : 'text-gray-700'
+                    }`}>
                     {user?.username}
                   </span>
-                  <ChevronDown className="h-4 w-4 text-white/70" />
+                  <ChevronDown className={`h-4 w-4 ${theme === 'kanban' ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
                 </button>
 
                 {/* 下拉菜单 */}
@@ -172,17 +197,17 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </div>
         </div>
-      </nav>
+      </nav >
 
       {/* 主内容区域 */}
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-slide-up">
+      < main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-slide-up" >
         <div className="min-h-[calc(100vh-8rem)]">
           {children}
         </div>
-      </main>
+      </main >
 
       {/* 底部装饰 */}
-      <div className="fixed bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 opacity-50" />
-    </div>
+      < div className="fixed bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 opacity-50" />
+    </div >
   )
 }
