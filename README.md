@@ -1,208 +1,145 @@
-# iTeam - One Person, One Team
+<p align="center">
+  <img src="docs/images/logo-banner.png" alt="iTeam Logo" width="600">
+</p>
 
-> AI-Powered Multi-Device Collaboration Management System
+<p align="center">
+  <strong>一人即团队 · 让个人开发者拥有团队协作的超能力</strong>
+</p>
 
-A modern web-based team collaboration platform designed for solo developers managing multiple AI-powered development devices. Coordinate different IDEs and devices through a unified command center.
+<p align="center">
+  <a href="https://github.com/ULis3h/iteam/releases"><img src="https://img.shields.io/github/v/release/ULis3h/iteam?include_prereleases&style=flat-square&color=8B5CF6" alt="Release"></a>
+  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
+  <a href="https://deepwiki.com/ULis3h/iteam"><img src="https://img.shields.io/badge/Ask%20DeepWiki-8B5CF6?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMiA3TDEyIDEyTDIyIDdMMTIgMloiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CjxwYXRoIGQ9Ik0yIDE3TDEyIDIyTDIyIDE3IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8cGF0aCBkPSJNMiAxMkwxMiAxN0wyMiAxMiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+&logoColor=white" alt="Ask DeepWiki"></a>
+</p>
 
-## ✨ Core Concept
-
-**One Person · Multiple Devices · Full Collaboration**
-
-iTeam treats a single developer's multiple AI devices/agents as a virtual team:
-
-- Assign different "roles" to each device (Frontend, Backend, DevOps, etc.)
-- Allocate different task modules to each device
-- Real-time monitoring of all device status and work progress
-- Unified management of project progress, code commits, and documentation
-
-## 🚀 Features
-
-### Device Management
-- Real-time device status monitoring (online/offline/working/idle)
-- Detailed hardware information display (CPU, GPU, Memory, Disk)
-- Device role assignment (Frontend, Backend, DevOps, QA, etc.)
-- Device heartbeat with API Key authentication
-
-### Dashboard
-- Overview statistics (total devices, online count, active projects)
-- Real-time device list with status indicators
-- Beautiful animated UI with glassmorphism design
-
-### Project Management
-- Project tracking and status management
-- Code contribution statistics
-- Task assignment to devices
-
-### Document Center
-- Knowledge base management
-- Category-based organization (Standards, Tech Notes, Bug Fixes)
-- Full-text search functionality
-
-### Authentication
-- JWT-based user authentication
-- API Key authentication for device agents
-- Protected routes and secure API endpoints
-
-## 🛠 Tech Stack
-
-### Frontend
-- React 18 + TypeScript
-- Tailwind CSS (Modern UI design)
-- React Router (Routing)
-- Lucide Icons
-
-### Backend
-- Node.js + Express
-- Prisma ORM
-- SQLite (Development) / PostgreSQL (Production ready)
-- WebSocket (Real-time communication)
-- JWT + bcrypt (Authentication)
-
-## 📁 Project Structure
-
-```
-iteam/
-├── client/                 # Frontend application
-│   ├── src/
-│   │   ├── components/    # Reusable components
-│   │   ├── contexts/      # React Context (Auth)
-│   │   ├── pages/         # Page components
-│   │   └── types/         # TypeScript types
-│   └── package.json
-│
-├── server/                 # Backend service
-│   ├── src/
-│   │   ├── middleware/    # Express middleware
-│   │   ├── routes/        # API routes
-│   │   ├── utils/         # Utilities
-│   │   └── websocket/     # WebSocket handlers
-│   ├── prisma/            # Database schema
-│   └── package.json
-│
-├── agent-client/           # AI Agent Desktop Client ⭐ NEW
-│   ├── src/
-│   │   ├── main/          # Electron main process
-│   │   ├── renderer/      # UI and rendering
-│   │   ├── preload/       # IPC bridge
-│   │   └── services/      # WebSocket & Claude Code integration
-│   └── package.json
-│
-├── docs/                   # Project documentation
-│   ├── features/          # Feature specifications
-│   ├── api/               # API documentation
-│   └── database/          # Database design
-│
-├── simulate-devices.sh     # Device simulation script
-└── start-dev.sh           # Development startup script
-```
-
-## 🏃 Quick Start
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/iteam.git
-cd iteam
-
-# Install dependencies
-cd server && npm install
-cd ../client && npm install
-```
-
-### Development
-
-```bash
-# Start both frontend and backend (recommended)
-./start-dev.sh
-
-# Or start separately:
-# Backend (port 3000)
-cd server && npm run dev
-
-# Frontend (port 5173)
-cd client && npm run dev
-```
-
-### AI Agent Client (Recommended)
-
-Start the intelligent agent client with Claude Code integration:
-
-```bash
-# Install dependencies (first time only)
-cd agent-client && npm install
-
-# Start the agent client
-./start-agent.sh
-
-# Or in development mode
-npm run dev
-```
-
-See [Agent Client Documentation](./agent-client/README.md) for detailed setup.
-
-### Simulate Devices (Alternative)
-
-```bash
-# Run the device simulation script
-./simulate-devices.sh
-```
-
-## 📖 Documentation
-
-Full documentation is available in the `/docs` directory:
-
-- [System Architecture](./ARCHITECTURE.md) ⭐ **必读** - 系统架构和组件说明
-- [Server Documentation](./server/README.md) - 后端服务器完整文档
-- [Agent Client Guide](./agent-client/README.md) - Agent客户端使用指南
-- [Agent Quick Start](./agent-client/QUICKSTART.md) - Agent快速开始
-- [Project Overview](./docs/overview/README.md)
-- [Feature Specifications](./docs/features/README.md)
-- [API Reference](./docs/api/README.md)
-- [Database Design](./docs/database/README.md)
-- [Changelog](./docs/CHANGELOG.md)
-
-## 🗺 Roadmap
-
-- [x] User authentication (Register/Login/Logout)
-- [x] Device management with real-time status
-- [x] Team role assignment
-- [x] Dashboard with statistics
-- [x] Device details modal (hardware info)
-- [x] API Key authentication for devices
-- [x] Project documentation
-- [x] AI Agent Desktop Client with Claude Code integration ⭐ NEW
-- [ ] Full project management UI
-- [ ] Markdown document editor
-- [ ] Real-time notifications
-- [ ] Task assignment and tracking
-- [ ] Code contribution analytics
-
-## 🔐 API Authentication
-
-### User Authentication (JWT)
-```bash
-curl -H "Authorization: Bearer <token>" \
-  http://localhost:3000/api/devices
-```
-
-### Device Authentication (API Key)
-```bash
-curl -H "X-API-Key: iteam-device-key" \
-  -X PUT http://localhost:3000/api/devices/:id \
-  -d '{"status": "working"}'
-```
-
-## 📝 License
-
-MIT
+<p align="center">
+  <a href="#-快速开始">快速开始</a> •
+  <a href="#-功能特性">功能特性</a> •
+  <a href="#-agent-client">Agent Client</a> •
+  <a href="#-技术栈">技术栈</a> •
+  <a href="#-文档">文档</a>
+</p>
 
 ---
 
 <p align="center">
-  <strong>iTeam</strong> - Empower one person to work like a team
+  <img src="docs/images/dashboard-preview.png" alt="Dashboard Preview" width="90%">
+</p>
+
+## 🎯 核心理念
+
+**iTeam** 让个人开发者能够像管理一个完整团队一样，协调多个 AI Agent 和开发设备。
+
+- 🖥️ **多设备协作** - 将多台设备作为虚拟团队成员管理
+- 🤖 **AI Agent 集成** - 与 Claude Code、Gemini CLI 等 AI 工具深度集成  
+- 📊 **实时拓扑图** - 可视化展示所有设备和 Agent 的连接状态
+- 📝 **知识库管理** - 集中管理项目文档、技术笔记、Bug 修复记录
+
+---
+
+## ⚡ 快速开始
+
+```bash
+# 克隆仓库
+git clone https://github.com/ULis3h/iteam.git
+cd iteam
+
+# 一键启动开发环境
+./start-dev.sh
+```
+
+访问 http://localhost:5173 开始使用！
+
+### 下载 Agent Client
+
+<p>
+  <a href="https://github.com/ULis3h/iteam/releases/latest">
+    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-8B5CF6?style=for-the-badge&logo=apple&logoColor=white" alt="Download macOS">
+  </a>
+</p>
+
+---
+
+## ✨ 功能特性
+
+### 📡 设备拓扑图
+点击展开查看每个部门的设备详情，实时监控连接状态。
+
+<img src="docs/images/topology-preview.png" alt="Topology" width="80%">
+
+### 🤖 AI Agent Client
+独立桌面应用，自动接收任务并调用 Claude Code 执行。
+
+### 📋 项目管理
+看板式任务管理，支持多项目并行。
+
+### 📝 文档中心
+Markdown 编辑器，分类管理技术文档。
+
+---
+
+## 🤖 Agent Client
+
+Agent Client 是 iTeam 的桌面客户端，让你的开发机器变成智能 Agent：
+
+```bash
+# 安装依赖
+cd agent-client && npm install
+
+# 启动 Agent
+./start-agent.sh
+```
+
+**主要功能：**
+- ✅ 自动连接 iTeam 服务器
+- ✅ 接收并执行派发的任务
+- ✅ 调用 Claude Code 自动完成开发任务
+- ✅ 实时上报任务状态
+
+详见 [Agent Client 文档](./agent-client/README.md)
+
+---
+
+## 🛠 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| **Frontend** | React 18, TypeScript, Tailwind CSS, Vite |
+| **Backend** | Node.js, Express, Prisma ORM, Socket.IO |
+| **Database** | SQLite (Dev) / PostgreSQL (Prod) |
+| **Desktop** | Electron |
+| **AI Integration** | Claude Code, 支持 Gemini CLI |
+
+---
+
+## 📖 文档
+
+- 📘 [系统架构](./ARCHITECTURE.md) - 完整架构设计
+- 📗 [快速上手](./QUICKSTART.md) - 5分钟入门指南
+- 📙 [Agent Client](./agent-client/README.md) - 桌面客户端使用
+- 📕 [API 参考](./docs/api/README.md) - REST API 文档
+
+---
+
+## 🗺 路线图
+
+- [x] 设备管理与实时状态监控
+- [x] 拓扑图可视化（点击展开/收起）
+- [x] Agent Client 桌面应用
+- [x] 文档编辑器
+- [ ] 工作流自动化
+- [ ] 多 Agent 协作任务
+- [ ] 代码贡献分析
+
+---
+
+## 📝 License
+
+MIT License © 2024 [ULis3h](https://github.com/ULis3h)
+
+---
+
+<p align="center">
+  <strong>iTeam</strong> - 让一个人拥有一个团队的力量 💪
 </p>
