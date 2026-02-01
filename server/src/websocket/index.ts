@@ -134,7 +134,7 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
       }
     })
 
-    // Heartbeat
+    // Heartbeat (simple ping/pong)
     socket.on('ping', async () => {
       if (socket.data.deviceId) {
         await prisma.device.update({
@@ -143,6 +143,27 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
         })
       }
       socket.emit('pong')
+    })
+
+    // Device heartbeat (with metadata)
+    socket.on('device:heartbeat', async (data: {
+      deviceId?: string
+      timestamp?: number
+      cpuUsage?: any
+      memoryUsage?: any
+    }) => {
+      const deviceId = data?.deviceId || socket.data.deviceId
+      if (deviceId) {
+        try {
+          await prisma.device.update({
+            where: { id: deviceId },
+            data: { lastSeen: new Date() },
+          })
+          socket.emit('heartbeat:ack', { timestamp: Date.now() })
+        } catch (error) {
+          // Device might not exist, ignore silently
+        }
+      }
     })
 
     // Disconnection
@@ -168,6 +189,97 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
           logger.error('Error updating device on disconnect:', error)
         }
       }
+    })
+
+    // ============== 任务执行追踪实时同步 ==============
+
+    // 同步追踪会话
+    socket.on('trace:session', async (data: {
+      id: string
+      taskId?: string
+      deviceId: string
+      status: string
+      title?: string
+      startTime: string
+      endTime?: string
+    }) => {
+      try {
+        const session = await prisma.taskSession.upsert({
+          where: { id: data.id },
+          update: {
+            status: data.status,
+            title: data.title,
+            endTime: data.endTime ? new Date(data.endTime) : undefined,
+          },
+          create: {
+            id: data.id,
+            taskId: data.taskId,
+            deviceId: data.deviceId,
+            status: data.status,
+            title: data.title,
+            startTime: new Date(data.startTime),
+          },
+        })
+
+        // 广播给订阅此设备的客户端
+        io.emit('trace:session:update', session)
+        logger.info(`Trace session synced: ${session.id}`)
+      } catch (error) {
+        logger.error('Error syncing trace session:', error)
+        socket.emit('error', { message: 'Failed to sync trace session' })
+      }
+    })
+
+    // 同步追踪条目
+    socket.on('trace:entry', async (data: {
+      id: string
+      sessionId: string
+      type: string
+      title: string
+      content: string
+      metadata?: any
+      duration?: number
+      timestamp: string
+    }) => {
+      try {
+        const entry = await prisma.traceEntry.upsert({
+          where: { id: data.id },
+          update: {
+            type: data.type,
+            title: data.title,
+            content: data.content,
+            metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+            duration: data.duration,
+          },
+          create: {
+            id: data.id,
+            sessionId: data.sessionId,
+            type: data.type,
+            title: data.title,
+            content: data.content,
+            metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+            duration: data.duration,
+            timestamp: new Date(data.timestamp),
+          },
+        })
+
+        // 广播给订阅此会话的客户端
+        io.emit('trace:entry:update', entry)
+      } catch (error) {
+        logger.error('Error syncing trace entry:', error)
+        socket.emit('error', { message: 'Failed to sync trace entry' })
+      }
+    })
+
+    // 订阅设备追踪更新
+    socket.on('trace:subscribe', (deviceId: string) => {
+      socket.join(`trace:${deviceId}`)
+      logger.info(`Client subscribed to trace updates for device: ${deviceId}`)
+    })
+
+    // 取消订阅
+    socket.on('trace:unsubscribe', (deviceId: string) => {
+      socket.leave(`trace:${deviceId}`)
     })
   })
 

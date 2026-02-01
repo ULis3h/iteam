@@ -4,6 +4,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import Devices from './pages/Devices'
+import DeviceWorkbench from './pages/DeviceWorkbench'
 import Projects from './pages/Projects'
 import Documents from './pages/Documents'
 import DocumentDetail from './pages/DocumentDetail'
@@ -47,6 +48,7 @@ function AppContent() {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/devices" element={<Devices />} />
+                    <Route path="/device/:deviceId/workbench" element={<DeviceWorkbench />} />
                     <Route path="/projects" element={<Projects />} />
                     <Route path="/documents" element={<Documents />} />
                     <Route path="/documents/new" element={<DocumentEditor />} />

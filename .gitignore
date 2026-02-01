@@ -11,6 +11,12 @@ build/
 .env
 .env.local
 .env.*.local
+_bmad/
+_bmad-output
+.cursor
+.opencode
+.trae
+.windsurf
 
 # Logs
 logs/

@@ -31,6 +31,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 状态更新
   onStatusUpdate: (callback) => {
     ipcRenderer.on('status-update', (event, status) => callback(status));
+  },
+
+  // ============== MCP API ==============
+  mcp: {
+    // 连接到MCP服务器
+    connect: (name, config) => ipcRenderer.invoke('mcp:connect', { name, config }),
+    // 断开MCP服务器
+    disconnect: (name) => ipcRenderer.invoke('mcp:disconnect', { name }),
+    // 列出工具
+    listTools: (serverName) => ipcRenderer.invoke('mcp:list-tools', { serverName }),
+    // 调用工具
+    callTool: (serverName, toolName, args) => ipcRenderer.invoke('mcp:call-tool', { serverName, toolName, args }),
+    // 读取资源
+    readResource: (serverName, uri) => ipcRenderer.invoke('mcp:read-resource', { serverName, uri }),
+    // 获取连接状态
+    status: () => ipcRenderer.invoke('mcp:status'),
+  },
+
+  // ============== 追踪 API ==============
+  trace: {
+    // 获取所有会话
+    getSessions: (limit) => ipcRenderer.invoke('trace:get-sessions', { limit }),
+    // 获取会话详情
+    getSession: (sessionId) => ipcRenderer.invoke('trace:get-session', { sessionId }),
+    // 获取当前会话
+    getCurrent: () => ipcRenderer.invoke('trace:get-current'),
+    // 清理旧数据
+    cleanup: (daysToKeep) => ipcRenderer.invoke('trace:cleanup', { daysToKeep }),
   }
 });
 

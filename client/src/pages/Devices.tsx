@@ -639,17 +639,17 @@ export default function Devices() {
                         <button
                           onClick={() => handleViewDetails(device.id)}
                           className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
-                              ? 'text-gray-200 hover:bg-gray-700'
-                              : 'text-gray-700 hover:bg-gray-100'
+                            ? 'text-gray-200 hover:bg-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100'
                             }`}
                         >
                           详情
                         </button>
                         <button
-                          onClick={() => window.open(`/device/${device.id}/hud`, '_blank')}
+                          onClick={() => window.open(`/device/${device.id}/workbench`, '_blank')}
                           className={`block w-full text-left px-4 py-2 text-sm font-medium ${theme === 'kanban'
-                              ? 'text-cyan-400 hover:bg-gray-700'
-                              : 'text-cyan-600 hover:bg-gray-100'
+                            ? 'text-cyan-400 hover:bg-gray-700'
+                            : 'text-cyan-600 hover:bg-gray-100'
                             }`}
                         >
                           工作台
@@ -657,8 +657,8 @@ export default function Devices() {
                         <button
                           onClick={() => handleEditDevice(device)}
                           className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
-                              ? 'text-gray-200 hover:bg-gray-700'
-                              : 'text-gray-700 hover:bg-gray-100'
+                            ? 'text-gray-200 hover:bg-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100'
                             }`}
                         >
                           编辑
@@ -666,8 +666,8 @@ export default function Devices() {
                         <button
                           onClick={() => handleDeleteDevice(device.id)}
                           className={`block w-full text-left px-4 py-2 text-sm ${theme === 'kanban'
-                              ? 'text-red-400 hover:bg-gray-700'
-                              : 'text-red-600 hover:bg-gray-100'
+                            ? 'text-red-400 hover:bg-gray-700'
+                            : 'text-red-600 hover:bg-gray-100'
                             }`}
                         >
                           删除

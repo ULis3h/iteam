@@ -10,6 +10,7 @@ class SocketService {
     this.eventHandlers = {
       taskReceived: [],
       statusUpdate: [],
+      configUpdated: [],
       connected: [],
       disconnected: [],
       error: []
@@ -72,7 +73,13 @@ class SocketService {
         // 设备注册确认
         this.socket.on('device:registered', (data) => {
           console.log('Device registered:', data);
-          this.deviceId = data.deviceId;
+          this.deviceId = data.id || data.deviceId;
+        });
+
+        // 设备配置更新（角色/技能变更）
+        this.socket.on('device:config-updated', (data) => {
+          console.log('[SocketService] 收到配置更新:', data.name, data.role);
+          this.emit('configUpdated', data);
         });
 
       } catch (error) {
@@ -201,8 +208,9 @@ class SocketService {
 
   // 触发事件
   emit(event, data) {
-    if (this.eventHandlers[event]) {
-      this.eventHandlers[event].forEach(handler => handler(data));
+    const handlers = this.eventHandlers[event];
+    if (handlers) {
+      handlers.forEach(handler => handler(data));
     }
   }
 

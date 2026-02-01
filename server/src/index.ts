@@ -8,7 +8,7 @@ import logger from './utils/logger.js'
 import { syncRoleDocuments } from './utils/syncRoleDocs.js'
 import { setupWebSocket } from './websocket/index.js'
 import authRoutes from './routes/auth.js'
-import deviceRoutes from './routes/devices.js'
+import { createDeviceRouter } from './routes/devices.js'
 import projectRoutes from './routes/projects.js'
 import documentRoutes from './routes/documents.js'
 import statsRoutes from './routes/stats.js'
@@ -16,6 +16,7 @@ import rolesRoutes from './routes/roles.js'
 import agentRoutes from './routes/agents.js'
 import workflowRoutes from './routes/workflows.js'
 import teamRoutes from './routes/teams.js'
+import tracesRoutes from './routes/traces.js'
 import { authMiddleware } from './middleware/auth.js'
 
 // Load environment variables
@@ -66,7 +67,7 @@ const deviceApiKeyMiddleware = (req: express.Request, res: express.Response, nex
   // 如果没有 API Key，尝试使用 JWT 认证
   authMiddleware(req, res, next)
 }
-app.use('/api/devices', deviceApiKeyMiddleware, deviceRoutes)
+app.use('/api/devices', deviceApiKeyMiddleware, createDeviceRouter(io))
 
 // 保护路由 - 需要登录
 app.use('/api/projects', authMiddleware, projectRoutes)
@@ -77,6 +78,9 @@ app.use('/api/stats', authMiddleware, statsRoutes)
 app.use('/api/agents', authMiddleware, agentRoutes)
 app.use('/api/workflows', authMiddleware, workflowRoutes)
 app.use('/api/teams', authMiddleware, teamRoutes)
+
+// 任务执行追踪路由
+app.use('/api/traces', authMiddleware, tracesRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {

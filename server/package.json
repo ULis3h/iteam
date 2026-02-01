@@ -6,10 +6,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "mcp:start": "tsx src/mcp/standard-mcp-server.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "@prisma/client": "^5.7.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
@@ -17,7 +19,8 @@
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.3",
     "socket.io": "^4.6.0",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

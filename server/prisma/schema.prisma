@@ -82,6 +82,7 @@ model Device {
   agentTemplate      AgentTemplate?      @relation(fields: [agentTemplateId], references: [id])
   workflowExecutions WorkflowExecution[]
   teamMembers        TeamMember[]
+  taskSessions       TaskSession[]
 
   @@map("devices")
 }
@@ -264,3 +265,45 @@ model TeamMember {
   @@unique([teamId, deviceId])
   @@map("team_members")
 }
+
+// ==================== 任务执行追踪系统 ====================
+
+// 任务执行会话
+model TaskSession {
+  id          String   @id @default(uuid())
+  taskId      String?            // 关联的任务ID（可选）
+  deviceId    String
+  status      String   @default("running")  // running, completed, failed, paused
+  title       String?            // 会话标题
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  device      Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  entries     TraceEntry[]
+
+  @@map("task_sessions")
+}
+
+// 追踪条目
+model TraceEntry {
+  id          String   @id @default(uuid())
+  sessionId   String
+  timestamp   DateTime @default(now())
+  type        String   // task_received, thinking, discussion, step, result, error
+  title       String
+  content     String   // 详细内容（可能很长）
+  metadata    String?  // JSON: 附加元数据
+  duration    Int?     // 执行时长（毫秒）
+  createdAt   DateTime @default(now())
+
+  // Relations
+  session     TaskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([type])
+  @@map("trace_entries")
+}
+

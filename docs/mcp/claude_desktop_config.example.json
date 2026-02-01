@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "iteam": {
+            "command": "npx",
+            "args": [
+                "tsx",
+                "/path/to/your/iteam/server/src/mcp/standard-mcp-server.ts"
+            ],
+            "env": {
+                "DATABASE_URL": "file:../prisma/dev.db"
+            }
+        }
+    }
+}
