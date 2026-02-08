@@ -57,3 +57,10 @@ prisma/migrations/
 .claude/
 .VSCodeCounter/
 
+# Capacitor iOS - Xcode generated files
+ios/App/App/public/
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/build/
+*.xcuserdatad/
+

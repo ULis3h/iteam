@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Tag, Calendar, User } from 'lucide-react'
+import { ArrowLeft, Calendar, User } from 'lucide-react'
 import { useTheme } from '../contexts/ThemeContext'
 import { getAuthHeaders } from '../contexts/AuthContext'
 import type { Document } from '../types'

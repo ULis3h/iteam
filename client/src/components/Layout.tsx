@@ -90,13 +90,13 @@ export default function Layout({ children }: LayoutProps) {
               </div>
 
               {/* 导航链接 */}
-              <div className="hidden lg:ml-12 lg:flex lg:space-x-2">
+              <div className="hidden md:ml-8 md:flex md:space-x-1 lg:ml-12 lg:space-x-2">
                 {navigation.map((item) => (
                   <Link
                     key={item.name}
                     to={item.href}
                     className={`
-                      group relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-xl
+                      group relative inline-flex items-center px-3 py-2 text-sm font-medium rounded-xl md:min-h-[44px]
                       transition-all duration-300 overflow-hidden
                       ${isActive(item.href)
                         ? 'text-white'
@@ -135,7 +135,7 @@ export default function Layout({ children }: LayoutProps) {
               {/* 主题切换按钮 */}
               <button
                 onClick={toggleTheme}
-                className={`hidden lg:flex items-center justify-center h-10 w-10 rounded-full transition-colors ${theme === 'kanban'
+                className={`hidden md:flex items-center justify-center h-11 w-11 rounded-full transition-colors ${theme === 'kanban'
                   ? 'bg-gray-700 hover:bg-gray-600'
                   : 'bg-gray-100 hover:bg-gray-200'
                   }`}
