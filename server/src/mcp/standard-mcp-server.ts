@@ -132,6 +132,45 @@ server.tool('list_projects', '获取 iTeam 中所有项目列表', {}, async () 
     }
 })
 
+// Tool: 创建项目
+server.tool(
+    'create_project',
+    '创建一个新的 iTeam 项目',
+    {
+        name: z.string().describe('项目名称'),
+        description: z.string().describe('项目描述'),
+        repository: z.string().optional().default('').describe('代码仓库地址'),
+        complexity: z.enum(['small', 'medium', 'large', 'enterprise']).optional().describe('项目复杂度'),
+    },
+    async ({ name, description, repository, complexity }) => {
+        try {
+            const project = await prisma.project.create({
+                data: {
+                    name,
+                    description,
+                    repository: repository || '',
+                    status: 'active',
+                    complexity: complexity || null,
+                },
+            })
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Project created!\n\nID: ${project.id}\nName: ${project.name}\nDescription: ${project.description}\nStatus: ${project.status}`,
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
 // Tool: 搜索文档
 server.tool(
     'search_documents',
