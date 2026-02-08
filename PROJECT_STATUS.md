@@ -48,19 +48,27 @@
 - ✅ 任务分发协议
 - ✅ 贡献统计协议
 
-### 6. 文档
-- ✅ README.md - 项目介绍
-- ✅ QUICKSTART.md - 快速启动指南
-- ✅ MCP实现文档
+### 6. BMAD Framework Integration (New)
+- ✅ Agent Template System (Standardized Agent Roles)
+- ✅ Workflow Engine (Structured Task Execution)
+- ✅ Team Orchestration (Multi-Agent Collaboration)
+- ✅ Task Execution Tracing (Granular Observability)
+- ✅ Database Schema Updates (AgentTemplate, Workflow, Team, TraceEntry)
+
+### 7. Documentation
+- ✅ README.md - Project Introduction
+- ✅ QUICKSTART.md - Quick Start Guide
+- ✅ MCP Implementation Docs
+- ✅ BMAD Architecture Docs
 
 ## 待完成 📋
 
-### 1. 数据库初始化
+### 1. Database Initialization
 ```bash
 cd server
 npm install
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
 ```
 
 ### 2. 前端依赖安装
@@ -194,5 +202,5 @@ npm install
 ---
 
 **创建时间**: 2026-01-17
-**最后更新**: 2026-01-17
-**项目版本**: 0.1.0 (Alpha)
+**最后更新**: 2026-02-08
+**项目版本**: 0.2.0 (Beta)

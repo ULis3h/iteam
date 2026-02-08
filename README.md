@@ -32,6 +32,7 @@
 
 **iTeam** enables solo developers to coordinate multiple AI Agents and development devices like managing a full team.
 
+- 🛡️ **BMAD Integration** - Standardized Agent Roles and Workflows
 - 🖥️ **Multi-device Collaboration** - Manage multiple devices as virtual team members
 - 🤖 **AI Agent Integration** - Deep integration with Claude Code, Gemini CLI, and more
 - 📊 **Real-time Topology** - Visualize connections and status of all devices and agents
@@ -117,6 +118,7 @@ See [Agent Client Documentation](./agent-client/README.md) for details.
 ## 📖 Documentation
 
 - 📘 [System Architecture](./ARCHITECTURE.md) - Complete architecture design
+- 🧠 [BMAD Architecture](./docs/features/BMAD-ARCHITECTURE.md) - **New!** AI-driven development framework guide
 - 📗 [Quick Start Guide](./QUICKSTART.md) - Get started in 5 minutes
 - 📙 [Agent Client](./agent-client/README.md) - Desktop client usage
 - 📕 [API Reference](./docs/api/README.md) - REST API documentation

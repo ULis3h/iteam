@@ -1,0 +1,186 @@
+{
+  "name": "iteam-vscode",
+  "displayName": "iTeam - Multi-Device Collaboration",
+  "description": "Connect VS Code to iTeam server for AI-driven multi-device collaboration",
+  "version": "0.1.0",
+  "publisher": "iteam",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "iteam.connect",
+        "title": "Connect to Server",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.disconnect",
+        "title": "Disconnect from Server",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.setRole",
+        "title": "Set Device Role",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.setSkills",
+        "title": "Set Device Skills",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.executeTask",
+        "title": "Execute Assigned Task",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.showDeviceInfo",
+        "title": "Show Device Info",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.showLogs",
+        "title": "Show Logs",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.openDashboard",
+        "title": "Open Dashboard",
+        "category": "iTeam"
+      }
+    ],
+    "configuration": {
+      "title": "iTeam",
+      "properties": {
+        "iteam.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "URL of the iTeam server"
+        },
+        "iteam.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for device authentication"
+        },
+        "iteam.deviceName": {
+          "type": "string",
+          "default": "",
+          "description": "Device name for registration (defaults to hostname)"
+        },
+        "iteam.role": {
+          "type": "string",
+          "enum": [
+            "frontend",
+            "backend",
+            "fullstack",
+            "devops",
+            "qa",
+            "architect",
+            "pm",
+            "designer"
+          ],
+          "default": "fullstack",
+          "description": "Device role in the team"
+        },
+        "iteam.skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "typescript"
+          ],
+          "description": "Skill tags for this device"
+        },
+        "iteam.aiProvider": {
+          "type": "string",
+          "enum": [
+            "anthropic",
+            "openai",
+            "custom"
+          ],
+          "default": "anthropic",
+          "description": "AI provider used by this device"
+        },
+        "iteam.aiModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-5",
+          "description": "AI model identifier"
+        },
+        "iteam.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically connect when VS Code starts"
+        },
+        "iteam.heartbeatInterval": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 120000,
+          "description": "Heartbeat interval in milliseconds"
+        },
+        "iteam.taskExecution.mode": {
+          "type": "string",
+          "enum": [
+            "terminal",
+            "background",
+            "manual"
+          ],
+          "default": "terminal",
+          "description": "How to execute assigned tasks"
+        },
+        "iteam.taskExecution.autoAccept": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically accept and execute assigned tasks"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "iteam-container",
+          "title": "iTeam",
+          "icon": "resources/icons/iteam-logo.svg"
+        }
+      ]
+    },
+    "views": {
+      "iteam-container": [
+        {
+          "type": "webview",
+          "id": "iteam-sidebar",
+          "name": "Device Status"
+        },
+        {
+          "id": "iteam-tasks",
+          "name": "Task Queue"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "esbuild": "^0.19.0"
+  }
+}

@@ -353,246 +353,147 @@ server/
 - ✅ **CORS保护** - 跨域请求限制
 - ✅ **优雅关闭** - SIGTERM/SIGINT处理
 
----
-
-## 🔄 系统工作流程
-
-### 整体架构图
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      iTeam 系统架构                          │
-└─────────────────────────────────────────────────────────────┘
-
-    人类用户                                    AI Agent
-        │                                          │
-        ▼                                          ▼
-┌───────────────┐                        ┌──────────────────┐
-│   client      │                        │  agent-client    │
-│  (Web控制台)   │                        │  (桌面应用)       │
-├───────────────┤                        ├──────────────────┤
-│ • 登录系统     │                        │ • 连接服务器      │
-│ • 查看设备     │◄──────┐       ┌──────►│ • 配置角色        │
-│ • 创建项目     │       │       │       │ • 接收任务        │
-│ • 分配任务     │───────┼───────┼───────│ • 执行任务        │
-│ • 监控状态     │       │       │       │ • 调用Claude Code │
-│ • 查看结果     │       │       │       │ • 上报结果        │
-└───────────────┘       │       │       └──────────────────┘
-   React + Vite         │       │       Electron + Socket.io
-   Port: 5173           │       │
-        │               │       │                │
-        │               ▼       ▼                │
-        │        ┌─────────────────┐             │
-        └───────►│  iTeam Server   │◄────────────┘
-       HTTP/WS   │   (Node.js)     │   WebSocket
-                 ├─────────────────┤
-                 │ • Express API   │
-                 │ • WebSocket     │
-                 │ • Prisma ORM    │
-                 │ • SQLite/PG     │
-                 │ • 任务调度      │
-                 └─────────────────┘
-                   Port: 3000
-```
-
-### 典型工作流程示例
-
-#### 场景：创建一个代码生成任务
-
-**步骤 1: 在 client (Web界面)**
-```
-1. 开发者登录系统
-2. 进入"项目管理"页面
-3. 点击"创建新任务"
-4. 填写任务信息：
-   - 标题: "创建用户登录组件"
-   - 类型: code_generation
-   - 描述: "创建一个React登录组件，包含用户名和密码输入"
-   - 工作目录: /path/to/project
-   - 分配给: "我的开发机"（某个在线的Agent）
-5. 提交任务
-6. 实时查看任务状态变化：pending → running → completed
-7. 查看执行结果和生成的代码
-```
-
-**步骤 2: 在 agent-client (自动执行)**
-```
-1. [自动] 通过WebSocket接收任务
-2. [自动] 任务加入本地队列
-3. [自动] 更新服务器任务状态为 'running'
-4. [自动] 根据任务类型构建Claude Code命令
-5. [自动] 启动子进程执行 Claude Code CLI
-6. [自动] 实时捕获输出并显示在日志
-7. [自动] 等待执行完成
-8. [自动] 更新任务状态为 'completed'
-9. [自动] 上传执行结果到服务器
-10. [自动] 处理队列中的下一个任务
-```
-
-**步骤 3: 在 server (协调)**
-```
-1. 接收client创建的任务请求
-2. 保存任务到数据库
-3. 通过WebSocket推送任务到指定Agent
-4. 接收Agent的状态更新
-5. 存储任务结果
-6. 通知client任务完成
-```
+### 6. BMAD Framework (AI-Driven Development) 🧠
+- **Agent Templates**: Standardized roles (PM, Architect, Dev, QA) with specific personas and capabilities.
+- **Workflow Engine**: Structured, multi-step task execution (e.g., "Create PRD", "Sprint Planning").
+- **Team Orchestration**: Multi-agent collaboration modes (Sequential, Hierarchical, Joint).
+- **Task Tracing**: Detailed execution logs for debugging and auditing AI behaviors.
 
 ---
 
-## 📋 组件对比
+## 🔄 System Workflow
 
-| 特性 | client (Web控制台) | agent-client (Agent应用) | server (后端服务) |
-|------|-------------------|------------------------|------------------|
-| **角色** | 指挥中心 | 执行者 | 协调者 |
-| **用户** | 👤 人类开发者 | 🤖 AI Agent | - |
-| **类型** | 🌐 Web应用 | 🖥️ 桌面应用 | 🔧 后端服务 |
-| **技术** | React + TS | Electron | Node.js + Express |
-| **端口** | 5173 | - | 3000 |
-| **通信** | HTTP + WebSocket | WebSocket | HTTP + WebSocket |
-| **主要功能** | 管理、监控、分配 | 自动执行任务 | 数据存储、调度 |
-| **交互方式** | 点击、输入 | 自动运行 | API调用 |
-| **数据流向** | 查看、创建 | 接收、上报 | 存储、转发 |
+### Overall Architecture
+
+```mermaid
+graph TD
+    User[Human User] --> Client[Client Web Console]
+    Client --> Server[Server API]
+    
+    subgraph "BMAD AI Cloud"
+        Agent1[Agent: PM]
+        Agent2[Agent: Architect] 
+        Agent3[Agent: Developer]
+    end
+    
+    Agent1 <--> Server
+    Agent2 <--> Server
+    Agent3 <--> Server
+    
+    Server --> DB[(Database)]
+    
+    classDef plain fill:#fff,stroke:#333,stroke-width:1px;
+    class User,Client,Server,DB,Agent1,Agent2,Agent3 plain;
+```
+
+### Typical Workflow Example
+
+#### Scenario: "Create a Login Component"
+
+**Step 1: In Client (Web Interface)**
+1. Developer logs in.
+2. Selects "Create Task" -> "Frontend Feature".
+3. Assigns to "Frontend Squad" (Team).
+
+**Step 2: On Server (Orchestration)**
+1. Server receives request.
+2. Identifies the "Frontend Squad" configuration.
+3. Instantiates the "Feature Implementation" workflow.
+4. Assigns step 1 (Design) to `ux-agent`.
+
+**Step 3: On Agent (Execution)**
+1. `ux-agent` receives task via WebSocket.
+2. Executes "Design Component" workflow step.
+3. Submits design artifacts back to Server.
+4. Server triggers step 2 (Implementation) for `dev-agent`.
 
 ---
 
-## 🔌 通信协议
+## 📋 Component Comparison
+
+| Feature | Client (Web) | Agent-Client (Desktop) | Server (Backend) |
+|---------|-------------|----------------------|------------------|
+| **Role** | Command Center | Worker Node | Orchestrator |
+| **User** | 👤 Human | 🤖 AI Agent | - |
+| **Tech** | React + Vite | Electron | Node.js + Express |
+| **Comms** | HTTP + WS | WebSocket | HTTP + WS |
+| **Primary**| Management | Execution | Coordination |
+
+---
+
+## 🔌 Communication Protocols
 
 ### HTTP REST API
-用于client与server之间的数据交互
+Standard CRUD operations for data entities.
 
 ```
-GET    /api/stats              - 获取统计数据
-GET    /api/devices            - 获取设备列表
-POST   /api/devices            - 注册新设备
-GET    /api/projects           - 获取项目列表
-POST   /api/projects           - 创建项目
-GET    /api/documents          - 获取文档列表
-POST   /api/auth/login         - 用户登录
-POST   /api/auth/register      - 用户注册
+/api/agents             - Agent Template Management
+/api/workflows          - Workflow Definition Management
+/api/teams              - Team Configuration
+/api/traces             - Execution Trace Retrieval
 ```
 
-### WebSocket事件
-用于实时通信
+### WebSocket Events
+Real-time coordination.
 
-**Server → Client/Agent:**
-```javascript
-'task:assigned'        // 任务分配
-'status:update'        // 状态更新
-'device:registered'    // 设备注册确认
-```
+**Server → Agent:**
+- `workflow:start`: Trigger a new workflow.
+- `step:assign`: Assign a specific step to an agent.
+- `team:sync`: Synchronize team state.
 
-**Client/Agent → Server:**
-```javascript
-'device:register'      // 设备注册
-'device:heartbeat'     // 心跳
-'device:status'        // 状态更新
-'task:status'          // 任务状态更新
-```
+**Agent → Server:**
+- `step:complete`: Notify step completion with artifacts.
+- `trace:log`: Send execution logs (thinking process, tool usage).
+- `error:report`: Report execution failures.
 
 ---
 
-## 💡 设计理念
+## 💡 Design Philosophy
 
-### 类比：工厂管理系统
+### The "One-Person Team"
+iTeam empowers a single developer to act as a CTO, managing a team of specialized AI agents.
 
-- **client** = 工厂的**控制室** 👨‍💼
-  - 查看所有机器人状态
-  - 分配工作任务
-  - 监控生产进度
-  - 查看生产报告
-
-- **agent-client** = 工厂的**智能机器人** 🤖
-  - 接收工作指令
-  - 自动完成任务
-  - 报告工作进度
-  - 持续运行待命
-
-- **server** = 工厂的**调度系统** 🏭
-  - 存储所有信息
-  - 协调资源分配
-  - 转发消息通信
-  - 记录所有活动
-
-### 核心优势
-
-1. **一人多机协作**
-   - 一个开发者管理多个AI Agent
-   - 每个Agent有不同的角色和技能
-   - 统一的任务分配和监控
-
-2. **实时性**
-   - WebSocket实时通信
-   - 即时状态更新
-   - 实时日志输出
-
-3. **自动化**
-   - Agent自动执行任务
-   - 无需人工干预
-   - 智能任务队列
-
-4. **可扩展性**
-   - 支持多种任务类型
-   - 可添加新的Agent
-   - 灵活的架构设计
+### BMAD-METHOD Integration
+We follow the **Breakthrough Method for Agile Development**:
+1. **Defined Roles**: Agents aren't generic; they are specialists (PM, QA, Dev).
+2. **Structured Flows**: Work isn't random; it follows best-practice workflows.
+3. **Traceability**: Every AI decision is logged and auditable.
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 启动完整系统
+### Start Full System
 
 ```bash
-# 1. 启动服务器
+# 1. Start Server
 cd server
-npm run dev          # 运行在 http://localhost:3000
+npm run dev
 
-# 2. 启动Web控制台
+# 2. Start Client
 cd client
-npm run dev          # 运行在 http://localhost:5173
+npm run dev
 
-# 3. 启动Agent客户端
+# 3. Start Agent Client
 cd agent-client
-./start-agent.sh     # 桌面应用
+npm start
 ```
 
-### 访问系统
-
-1. 打开浏览器访问 `http://localhost:5173`
-2. 注册/登录账号
-3. 启动agent-client并连接服务器
-4. 在Web界面查看Agent上线
-5. 创建任务并分配给Agent
-6. 观察Agent自动执行任务
+### Access Points
+- Web Console: `http://localhost:5173`
+- Server API: `http://localhost:3000`
+- Agent Client: Desktop Application
 
 ---
 
-## 📚 相关文档
-
-- [项目README](./README.md)
-- [服务器文档](./server/README.md)
-- [Agent客户端文档](./agent-client/README.md)
-- [Agent快速开始](./agent-client/QUICKSTART.md)
-- [Agent开发文档](./agent-client/DEVELOPMENT.md)
-- [项目状态](./PROJECT_STATUS.md)
+## 📚 Documentation
+- [README](./README.md)
+- [Server Documentation](./server/README.md)
+- [Agent Client Documentation](./agent-client/README.md)
+- [BMAD Architecture](./docs/features/BMAD-ARCHITECTURE.md) (New!)
 
 ---
 
-## 📝 总结
-
-**iTeam系统的核心思想**：
-
-> 让一个人通过管理多个AI Agent，实现"一人团队"的高效协作开发模式。
-
-- **client** 是您的眼睛和指挥棒 👀
-- **agent-client** 是您的智能助手 🤖
-- **server** 是连接一切的纽带 🔗
-
-三者配合，形成一个完整的AI驱动协作生态系统！
-
----
-
-**文档版本**: 1.0
-**最后更新**: 2026-01-17
-**维护者**: iTeam Team
+**Version**: 0.2.0 (Beta)
+**Last Updated**: 2026-02-08
+**Maintainer**: iTeam Team
