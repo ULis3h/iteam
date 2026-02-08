@@ -9,6 +9,7 @@ import { syncRoleDocuments } from './utils/syncRoleDocs.js'
 import { setupWebSocket } from './websocket/index.js'
 import authRoutes from './routes/auth.js'
 import { createDeviceRouter } from './routes/devices.js'
+import { createTaskRouter } from './routes/tasks.js'
 import projectRoutes from './routes/projects.js'
 import documentRoutes from './routes/documents.js'
 import statsRoutes from './routes/stats.js'
@@ -68,6 +69,7 @@ const deviceApiKeyMiddleware = (req: express.Request, res: express.Response, nex
   authMiddleware(req, res, next)
 }
 app.use('/api/devices', deviceApiKeyMiddleware, createDeviceRouter(io))
+app.use('/api/tasks', deviceApiKeyMiddleware, createTaskRouter(io))
 
 // 保护路由 - 需要登录
 app.use('/api/projects', authMiddleware, projectRoutes)

@@ -245,26 +245,149 @@ server.tool(
             }
 
             // 创建任务记录
-            const task = await prisma.task.create({
-                data: {
-                    deviceId,
-                    projectId,
-                    module: title,
-                    description: JSON.stringify({
-                        title,
-                        description,
-                        type,
-                        workDir: workDir || process.cwd(),
-                    }),
-                    status: 'pending',
+            // Dispatch via REST API (which handles WebSocket emit)
+            const serverUrl = process.env.SERVER_URL || 'http://localhost:3000'
+            const apiKey = process.env.DEVICE_API_KEY || 'iteam-device-key'
+
+            const response = await fetch(`${serverUrl}/api/tasks`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': apiKey,
                 },
+                body: JSON.stringify({ title, description, deviceId, projectId, type, workDir }),
+            })
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}))
+                return {
+                    content: [{ type: 'text', text: `Failed to create task: ${(errorData as any).error || response.statusText}` }],
+                    isError: true,
+                }
+            }
+
+            const result = await response.json() as any
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Task created and dispatched!\n\nTask ID: ${result.id}\nTitle: ${title}\nProject: ${project.name}\nAssigned to: ${device.name}\nDispatched: ${result.dispatched ? '✅ Yes' : '⚠️ Agent offline, will dispatch on reconnect'}\n\n${result.message}`,
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
+// Tool: 列出任务
+server.tool(
+    'list_tasks',
+    '获取 iTeam 中的任务列表，可按设备、项目、状态筛选',
+    {
+        deviceId: z.string().optional().describe('按设备ID筛选'),
+        projectId: z.string().optional().describe('按项目ID筛选'),
+        status: z.string().optional().describe('按状态筛选: pending, active, completed, paused'),
+        limit: z.number().optional().default(20).describe('返回数量限制'),
+    },
+    async ({ deviceId, projectId, status, limit }) => {
+        try {
+            const where: any = {}
+            if (deviceId) where.deviceId = deviceId
+            if (projectId) where.projectId = projectId
+            if (status) where.status = status
+
+            const tasks = await prisma.task.findMany({
+                where,
+                include: {
+                    device: { select: { id: true, name: true, status: true } },
+                    project: { select: { id: true, name: true } },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: limit,
             })
 
             return {
                 content: [
                     {
                         type: 'text',
-                        text: `Task created successfully!\n\nTask ID: ${task.id}\nTitle: ${title}\nProject: ${project.name}\nAssigned to: ${device.name}\nStatus: pending\n\nNote: The task has been saved. Use iTeam's task dispatch system to send it to the agent.`,
+                        text: JSON.stringify(
+                            tasks.map((t) => ({
+                                id: t.id,
+                                module: t.module,
+                                status: t.status,
+                                device: t.device.name,
+                                project: t.project.name,
+                                createdAt: t.createdAt,
+                                description: (() => {
+                                    try { return JSON.parse(t.description) } catch { return t.description }
+                                })(),
+                            })),
+                            null,
+                            2
+                        ),
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
+// Tool: 获取任务详情
+server.tool(
+    'get_task',
+    '获取指定任务的详细信息，包括执行结果',
+    {
+        taskId: z.string().describe('任务ID'),
+    },
+    async ({ taskId }) => {
+        try {
+            const task = await prisma.task.findUnique({
+                where: { id: taskId },
+                include: {
+                    device: { select: { id: true, name: true, status: true } },
+                    project: { select: { id: true, name: true } },
+                },
+            })
+
+            if (!task) {
+                return {
+                    content: [{ type: 'text', text: `Task not found: ${taskId}` }],
+                    isError: true,
+                }
+            }
+
+            let parsedDescription = task.description
+            try { parsedDescription = JSON.parse(task.description) } catch { }
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify(
+                            {
+                                id: task.id,
+                                module: task.module,
+                                status: task.status,
+                                device: task.device,
+                                project: task.project,
+                                description: parsedDescription,
+                                createdAt: task.createdAt,
+                                updatedAt: task.updatedAt,
+                            },
+                            null,
+                            2
+                        ),
                     },
                 ],
             }
