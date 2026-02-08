@@ -61,10 +61,11 @@ export interface Task {
   projectId: string
   module: string
   description: string
-  status: 'active' | 'completed' | 'paused'
+  status: 'pending' | 'active' | 'completed' | 'failed' | 'paused'
   createdAt: Date
   updatedAt: Date
   device?: Device
+  project?: { id: string; name: string }
 }
 
 // 项目类型

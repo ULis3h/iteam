@@ -28,9 +28,14 @@ const httpServer = createServer(app)
 const prisma = new PrismaClient()
 
 // Socket.IO setup
+// Socket.IO setup
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: [process.env.CORS_ORIGIN || 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: [
+      process.env.CORS_ORIGIN || 'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://192.168.1.105:5173'
+    ],
     methods: ['GET', 'POST'],
     credentials: true
   },
@@ -38,7 +43,11 @@ const io = new SocketIOServer(httpServer, {
 
 // Middleware
 app.use(cors({
-  origin: [process.env.CORS_ORIGIN || 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: [
+    process.env.CORS_ORIGIN || 'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://192.168.1.105:5173'
+  ],
   credentials: true
 }))
 app.use(express.json())

@@ -11,6 +11,8 @@ import DocumentDetail from './pages/DocumentDetail'
 import DocumentEditor from './pages/DocumentEditor'
 import Agents from './pages/Agents'
 import Workflows from './pages/Workflows'
+import Analytics from './pages/Analytics'
+import Tasks from './pages/Tasks'
 import Test from './pages/Test'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -54,7 +56,9 @@ function AppContent() {
                     <Route path="/documents/new" element={<DocumentEditor />} />
                     <Route path="/documents/:id" element={<DocumentDetail />} />
                     <Route path="/agents" element={<Agents />} />
+                    <Route path="/tasks" element={<Tasks />} />
                     <Route path="/workflows" element={<Workflows />} />
+                    <Route path="/analytics" element={<Analytics />} />
                     <Route path="/topology" element={<Topology />} />
                     <Route path="/device/:id/hud" element={<DeviceHUD />} />
                     <Route path="/test" element={<Test />} />

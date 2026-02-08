@@ -10,7 +10,10 @@ import {
   Network,
   Palette,
   Bot,
-  Workflow
+  Workflow,
+  ClipboardList,
+  GitGraph,
+  BarChart3
 } from 'lucide-react'
 import TeamLogo from './TeamLogo'
 import { useAuth } from '../contexts/AuthContext'
@@ -37,7 +40,9 @@ export default function Layout({ children }: LayoutProps) {
     { name: '仪表盘', href: '/', icon: LayoutDashboard, gradient: 'from-blue-400 to-purple-500' },
     { name: '设备', href: '/devices', icon: Monitor, gradient: 'from-green-400 to-cyan-500' },
     { name: 'Agent', href: '/agents', icon: Bot, gradient: 'from-yellow-400 to-orange-500' },
-    { name: '工作流', href: '/workflows', icon: Workflow, gradient: 'from-pink-400 to-rose-500' },
+    { name: '任务', href: '/tasks', icon: ClipboardList, gradient: 'from-emerald-400 to-teal-500' },
+    { name: '工作流', href: '/workflows', icon: GitGraph, gradient: 'from-pink-400 to-rose-500' }, // Icon changed to GitGraph
+    { name: '分析', href: '/analytics', icon: BarChart3, gradient: 'from-violet-400 to-purple-500' }, // Added Analytics item
     { name: '项目', href: '/projects', icon: FolderGit2, gradient: 'from-orange-400 to-pink-500' },
     { name: '文档', href: '/documents', icon: FileText, gradient: 'from-purple-400 to-indigo-500' },
     { name: '拓扑', href: '/topology', icon: Network, gradient: 'from-cyan-400 to-blue-500' },
