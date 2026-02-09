@@ -60,7 +60,12 @@ class SocketService {
 
         // 接收任务
         this.socket.on('task:assigned', (task) => {
-          console.log('Task received:', task);
+          // 只处理发给本设备的任务
+          if (task.deviceId && this.deviceId && task.deviceId !== this.deviceId) {
+            console.log(`[SocketService] Task ${task.id} is for device ${task.deviceId}, ignoring (my deviceId: ${this.deviceId})`);
+            return;
+          }
+          console.log('[SocketService] Task received:', task.title || task.id, 'deviceId:', task.deviceId);
           this.emit('taskReceived', task);
         });
 

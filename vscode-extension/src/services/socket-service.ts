@@ -118,7 +118,12 @@ export class SocketService implements vscode.Disposable {
       });
 
       this.socket.on(WS_EVENTS.TASK_ASSIGNED, (task: Task) => {
-        logger.info(`Task received: ${task.title || task.id}`);
+        // Only handle tasks targeted at this device
+        if (task.deviceId && this.deviceId && task.deviceId !== this.deviceId) {
+          logger.info(`Task ${task.id} is for device ${task.deviceId}, ignoring (my deviceId: ${this.deviceId})`);
+          return;
+        }
+        logger.info(`Task received: ${task.title || task.id} (deviceId: ${task.deviceId})`);
         this._onTaskAssigned.fire(task);
       });
 

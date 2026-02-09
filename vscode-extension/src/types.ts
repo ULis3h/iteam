@@ -54,7 +54,10 @@ export interface Task {
   title: string;
   description: string;
   type: TaskType;
+  deviceId?: string;
+  deviceName?: string;
   projectId?: string;
+  projectName?: string;
   workDir?: string;
   files?: string[];
   file?: string;

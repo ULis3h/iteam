@@ -104,17 +104,23 @@ export function createTaskRouter(io: SocketIOServer) {
 
             // Find the target device's socket and send task:assigned
             let dispatched = false
-            for (const [, socket] of io.sockets.sockets) {
+            const connectedSockets = Array.from(io.sockets.sockets.entries())
+            logger.info(`[Task Dispatch] Looking for deviceId=${deviceId} among ${connectedSockets.length} connected sockets`)
+
+            for (const [socketId, socket] of connectedSockets) {
+                logger.info(`[Task Dispatch]   socket=${socketId} deviceId=${socket.data.deviceId || '(not registered)'}`)
                 if (socket.data.deviceId === deviceId) {
                     socket.emit('task:assigned', taskPayload)
                     dispatched = true
-                    logger.info(`[Task Dispatch] task:assigned sent to ${device.name} (socket: ${socket.id})`)
+                    logger.info(`[Task Dispatch] ✅ task:assigned sent to ${device.name} (socket: ${socketId})`)
                     break
                 }
             }
 
             if (!dispatched) {
-                logger.warn(`[Task Dispatch] Device ${device.name} not connected via WebSocket. Task saved but not dispatched.`)
+                logger.warn(`[Task Dispatch] ❌ Device ${device.name} (${deviceId}) not found among connected sockets. Broadcasting to all clients as fallback.`)
+                // Fallback: broadcast to all clients with deviceId, let client-side filter
+                io.emit('task:assigned', taskPayload)
             }
 
             // Broadcast task creation event to all clients (for UI updates)
