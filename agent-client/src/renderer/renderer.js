@@ -282,6 +282,32 @@ function setupIPCListeners() {
   window.electronAPI.onStatusUpdate((status) => {
     updateStatus(status);
   });
+
+  // 配置更新（管理端修改角色/技能）
+  if (window.electronAPI.onConfigUpdated) {
+    window.electronAPI.onConfigUpdated((data) => {
+      // 更新 appState
+      if (data.role !== undefined) {
+        appState.agentConfig.role = data.role;
+        if (elements.agentRole) elements.agentRole.value = data.role;
+      }
+      if (data.skills) {
+        try {
+          const skillsArray = typeof data.skills === 'string' ? JSON.parse(data.skills) : data.skills;
+          if (Array.isArray(skillsArray)) {
+            appState.agentConfig.skills = skillsArray;
+            if (elements.agentSkills) elements.agentSkills.value = skillsArray.join(',');
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      // 持久化到 localStorage
+      localStorage.setItem('agentConfig', JSON.stringify(appState.agentConfig));
+
+      // 更新仪表盘
+      updateDashboardUI();
+    });
+  }
 }
 
 // 连接逻辑

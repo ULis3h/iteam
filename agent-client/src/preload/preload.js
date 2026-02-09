@@ -33,6 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('status-update', (event, status) => callback(status));
   },
 
+  // 配置更新（管理端修改角色/技能）
+  onConfigUpdated: (callback) => {
+    ipcRenderer.on('config-updated', (event, data) => callback(data));
+  },
+
   // ============== MCP API ==============
   mcp: {
     // 连接到MCP服务器

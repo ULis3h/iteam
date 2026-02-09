@@ -9,15 +9,19 @@ let mainWindow;
 let agentConfig = null;
 let taskQueue = [];
 let currentTask = null;
-let configUpdatedHandlerRegistered = false;
+
 
 function createWindow() {
+  const fs = require('fs');
+  const iconPath = path.join(__dirname, '../../build/icon.png');
+  const hasIcon = fs.existsSync(iconPath);
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    icon: path.join(__dirname, '../../build/icon.png'),
+    ...(hasIcon ? { icon: iconPath } : {}),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -30,8 +34,12 @@ function createWindow() {
   });
 
   // macOS: 设置 Dock 图标
-  if (process.platform === 'darwin' && app.dock) {
-    app.dock.setIcon(path.join(__dirname, '../../build/icon.png'));
+  if (process.platform === 'darwin' && app.dock && hasIcon) {
+    try {
+      app.dock.setIcon(iconPath);
+    } catch (e) {
+      console.warn('Failed to set dock icon:', e.message);
+    }
   }
 
   // 加载应用
@@ -45,6 +53,58 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+// 处理设备配置更新（管理端修改角色/技能）
+function handleConfigUpdated(data) {
+  // 只处理本设备的配置变更
+  if (data.deviceId && data.deviceId !== socketService.getDeviceId()) {
+    return;
+  }
+
+  console.log('[Main] 收到 configUpdated 事件:', data);
+
+  // 显示角色变更日志
+  if (data.oldRole !== data.role) {
+    sendLog('info', `📋 角色已变更: ${data.oldRole || '(无)'} → ${data.role || '(无)'}`);
+  } else {
+    sendLog('info', `📋 设备配置已更新`);
+  }
+
+  // 显示技能信息
+  if (data.skills) {
+    try {
+      const skillsArray = typeof data.skills === 'string' ? JSON.parse(data.skills) : data.skills;
+      if (Array.isArray(skillsArray) && skillsArray.length > 0) {
+        sendLog('info', `   技能: ${skillsArray.join(', ')}`);
+      }
+    } catch (e) {
+      if (data.skills !== '[]') {
+        sendLog('info', `   技能: ${data.skills}`);
+      }
+    }
+  }
+
+  // 更新内存中的 agentConfig
+  if (agentConfig) {
+    if (data.role !== undefined) {
+      agentConfig.role = data.role;
+    }
+    if (data.skills) {
+      try {
+        agentConfig.skills = typeof data.skills === 'string'
+          ? JSON.parse(data.skills)
+          : data.skills;
+      } catch (e) {
+        // skills 不是有效 JSON，保持原值
+      }
+    }
+    // 同步到 socketService
+    socketService.updateAgentConfig(agentConfig);
+    sendLog('info', '✅ Agent 配置已同步更新');
+  }
+
+  sendToRenderer('config-updated', data);
 }
 
 // 初始化服务
@@ -81,18 +141,7 @@ function initializeServices() {
   });
 
   // 设备配置更新（管理端修改角色/技能）
-  socketService.on('configUpdated', (data) => {
-    console.log('[Main] 收到 configUpdated 事件:', data);
-    if (data.oldRole !== data.role) {
-      sendLog('info', `📋 角色已变更: ${data.oldRole || '(无)'} → ${data.role || '(无)'}`);
-    } else {
-      sendLog('info', `📋 设备配置已更新`);
-    }
-    if (data.skills) {
-      sendLog('info', `   技能: ${data.skills}`);
-    }
-    sendToRenderer('config-updated', data);
-  });
+  socketService.on('configUpdated', handleConfigUpdated);
 
   // Claude服务事件监听
   claudeService.on('started', (data) => {
@@ -260,40 +309,6 @@ ipcMain.handle('get-app-path', () => {
 // 连接服务器
 ipcMain.handle('connect-to-server', async (event, config) => {
   try {
-    // 确保 configUpdated 事件处理器已注册
-    // 这是一个修复时序问题的措施
-    if (!configUpdatedHandlerRegistered) {
-      socketService.on('configUpdated', (data) => {
-        console.log('[Main] 收到 configUpdated 事件:', data);
-
-        // 显示角色变更
-        if (data.oldRole !== data.role) {
-          sendLog('info', `📋 角色已变更: ${data.oldRole || '(无)'} → ${data.role || '(无)'}`);
-        } else {
-          sendLog('info', `📋 设备配置已更新`);
-        }
-
-        // 显示技能信息（解析 JSON 字符串）
-        if (data.skills) {
-          try {
-            const skillsArray = typeof data.skills === 'string' ? JSON.parse(data.skills) : data.skills;
-            if (Array.isArray(skillsArray) && skillsArray.length > 0) {
-              sendLog('info', `   技能: ${skillsArray.join(', ')}`);
-            }
-          } catch (e) {
-            // skills 不是有效 JSON，直接显示
-            if (data.skills !== '[]') {
-              sendLog('info', `   技能: ${data.skills}`);
-            }
-          }
-        }
-
-        sendToRenderer('config-updated', data);
-      });
-      configUpdatedHandlerRegistered = true;
-      console.log('[Main] configUpdated 处理器已注册');
-    }
-
     const result = await socketService.connect(config);
     return result;
   } catch (error) {
