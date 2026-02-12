@@ -147,6 +147,88 @@ export function createTaskRouter(io: SocketIOServer) {
         }
     })
 
+    // Re-dispatch an existing task to the agent
+    router.post('/:id/redispatch', async (req, res) => {
+        try {
+            const task = await prisma.task.findUnique({
+                where: { id: req.params.id },
+                include: {
+                    device: { select: { id: true, name: true } },
+                    project: { select: { id: true, name: true } },
+                },
+            })
+
+            if (!task) {
+                return res.status(404).json({ error: 'Task not found' })
+            }
+
+            if (!task.device || !task.project) {
+                return res.status(400).json({ error: 'Task missing device or project assignment' })
+            }
+
+            // Parse stored description to recover original fields
+            let parsed: any = {}
+            try { parsed = JSON.parse(task.description) } catch { parsed = { description: task.description } }
+
+            // Reset task status to pending
+            await prisma.task.update({
+                where: { id: task.id },
+                data: { status: 'pending' },
+            })
+
+            // Build dispatch payload
+            const taskPayload = {
+                id: task.id,
+                title: parsed.title || task.module,
+                description: parsed.description || task.description,
+                type: parsed.type || 'custom',
+                workDir: parsed.workDir || process.cwd(),
+                projectId: task.projectId,
+                projectName: task.project.name,
+                deviceId: task.deviceId,
+                deviceName: task.device.name,
+            }
+
+            // Dispatch to target device
+            let dispatched = false
+            const connectedSockets = Array.from(io.sockets.sockets.entries())
+            for (const [socketId, socket] of connectedSockets) {
+                if (socket.data.deviceId === task.deviceId) {
+                    socket.emit('task:assigned', taskPayload)
+                    dispatched = true
+                    logger.info(`[Task Redispatch] ✅ task:assigned re-sent to ${task.device.name} (socket: ${socketId})`)
+                    break
+                }
+            }
+
+            if (!dispatched) {
+                logger.warn(`[Task Redispatch] ❌ Device ${task.device.name} not connected. Broadcasting as fallback.`)
+                io.emit('task:assigned', taskPayload)
+            }
+
+            if (dispatched) {
+                await prisma.task.update({
+                    where: { id: task.id },
+                    data: { status: 'active' },
+                })
+            }
+
+            io.emit('task:redispatched', { taskId: task.id, dispatched })
+
+            res.json({
+                ...task,
+                status: dispatched ? 'active' : 'pending',
+                dispatched,
+                message: dispatched
+                    ? `Task re-dispatched to ${task.device.name}`
+                    : `Device ${task.device.name} is offline. Will dispatch when connected.`,
+            })
+        } catch (error) {
+            logger.error('Failed to redispatch task:', error)
+            res.status(500).json({ error: 'Failed to redispatch task' })
+        }
+    })
+
     // Update task status
     router.patch('/:id', async (req, res) => {
         try {

@@ -10,7 +10,8 @@ import {
     XCircle,
     PauseCircle,
     Clock,
-    Trash2
+    Trash2,
+    RefreshCw
 } from 'lucide-react'
 import type { Task, Device, Project } from '../types'
 import taskService, { type CreateTaskData } from '../services/taskService'
@@ -98,6 +99,22 @@ export default function Tasks() {
         }
     }
 
+    const [redispatching, setRedispatching] = useState<string | null>(null)
+
+    const handleRedispatch = async (id: string) => {
+        try {
+            setRedispatching(id)
+            const result = await taskService.redispatchTask(id)
+            alert(result.message || '任务已重新分发')
+            await fetchTasks()
+        } catch (error) {
+            console.error('Failed to redispatch task:', error)
+            alert('重新执行任务失败')
+        } finally {
+            setRedispatching(null)
+        }
+    }
+
     // Filter by search query manually since API might not support partial text search on all fields
     const filteredTasks = tasks.filter(task => {
         if (!searchQuery) return true
@@ -164,12 +181,23 @@ export default function Tasks() {
                                             <span className={`text-xs font-mono px-2 py-0.5 rounded ${isKanbanTheme ? 'bg-gray-700' : 'bg-gray-100 text-gray-600'}`}>
                                                 {task.module}
                                             </span>
-                                            <button
-                                                onClick={() => handleDeleteTask(task.id)}
-                                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => handleRedispatch(task.id)}
+                                                    disabled={redispatching === task.id}
+                                                    className="text-gray-400 hover:text-blue-500 transition-colors"
+                                                    title="重新执行"
+                                                >
+                                                    <RefreshCw className={`w-4 h-4 ${redispatching === task.id ? 'animate-spin' : ''}`} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteTask(task.id)}
+                                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                                    title="删除"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
                                         <h4 className="font-medium mb-1 line-clamp-2">{task.description}</h4>
                                         <div className="flex items-center justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -243,12 +271,23 @@ export default function Tasks() {
                                 {new Date(task.updatedAt).toLocaleString()}
                             </td>
                             <td className="px-6 py-4 text-right">
-                                <button
-                                    onClick={() => handleDeleteTask(task.id)}
-                                    className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center justify-end gap-1">
+                                    <button
+                                        onClick={() => handleRedispatch(task.id)}
+                                        disabled={redispatching === task.id}
+                                        className="p-2 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                        title="重新执行"
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${redispatching === task.id ? 'animate-spin' : ''}`} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteTask(task.id)}
+                                        className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                        title="删除"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     ))}
@@ -283,8 +322,8 @@ export default function Tasks() {
                         <button
                             onClick={() => setViewMode('list')}
                             className={`p-2 rounded-md transition-all ${viewMode === 'list'
-                                    ? (isKanbanTheme ? 'bg-gray-700 text-white shadow' : 'bg-gray-100 text-gray-900 shadow-sm')
-                                    : 'text-gray-400 hover:text-gray-500'
+                                ? (isKanbanTheme ? 'bg-gray-700 text-white shadow' : 'bg-gray-100 text-gray-900 shadow-sm')
+                                : 'text-gray-400 hover:text-gray-500'
                                 }`}
                         >
                             <LayoutList className="w-5 h-5" />
@@ -292,8 +331,8 @@ export default function Tasks() {
                         <button
                             onClick={() => setViewMode('board')}
                             className={`p-2 rounded-md transition-all ${viewMode === 'board'
-                                    ? (isKanbanTheme ? 'bg-gray-700 text-white shadow' : 'bg-gray-100 text-gray-900 shadow-sm')
-                                    : 'text-gray-400 hover:text-gray-500'
+                                ? (isKanbanTheme ? 'bg-gray-700 text-white shadow' : 'bg-gray-100 text-gray-900 shadow-sm')
+                                : 'text-gray-400 hover:text-gray-500'
                                 }`}
                         >
                             <KanbanSquare className="w-5 h-5" />
@@ -322,8 +361,8 @@ export default function Tasks() {
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                             className={`pl-9 pr-4 py-2 rounded-lg border text-sm w-full md:w-64 focus:ring-2 focus:ring-blue-500 outline-none transition-all ${isKanbanTheme
-                                    ? 'bg-gray-900 border-gray-700 text-gray-200 placeholder-gray-500'
-                                    : 'bg-gray-50 border-gray-200 text-gray-900'
+                                ? 'bg-gray-900 border-gray-700 text-gray-200 placeholder-gray-500'
+                                : 'bg-gray-50 border-gray-200 text-gray-900'
                                 }`}
                         />
                     </div>
@@ -338,10 +377,10 @@ export default function Tasks() {
                                     key={status}
                                     onClick={() => setStatusFilter(status)}
                                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${isActive
-                                            ? 'bg-blue-100/50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
-                                            : isKanbanTheme
-                                                ? 'border-gray-700 text-gray-400 hover:bg-gray-700'
-                                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        ? 'bg-blue-100/50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
+                                        : isKanbanTheme
+                                            ? 'border-gray-700 text-gray-400 hover:bg-gray-700'
+                                            : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                                         }`}
                                 >
                                     {status === 'all' ? '全部' : statusConfig[status as keyof typeof statusConfig]?.label || status}

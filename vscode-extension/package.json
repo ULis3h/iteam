@@ -128,19 +128,26 @@
           "maximum": 120000,
           "description": "Heartbeat interval in milliseconds"
         },
+        "iteam.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key for direct API execution mode"
+        },
         "iteam.taskExecution.mode": {
           "type": "string",
           "enum": [
+            "api",
+            "ide",
             "terminal",
             "background",
             "manual"
           ],
-          "default": "terminal",
-          "description": "How to execute assigned tasks"
+          "default": "ide",
+          "description": "How to execute assigned tasks: api (Anthropic HTTP API), ide (VS Code built-in LM), terminal (claude CLI), background (headless CLI), manual (copy prompt)"
         },
         "iteam.taskExecution.autoAccept": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Automatically accept and execute assigned tasks"
         }
       }

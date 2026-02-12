@@ -54,12 +54,16 @@ export class ConfigService implements vscode.Disposable {
     return this.config.get('heartbeatInterval', DEFAULTS.HEARTBEAT_INTERVAL);
   }
 
-  get taskExecutionMode(): 'terminal' | 'background' | 'manual' {
-    return this.config.get('taskExecution.mode', 'terminal');
+  get taskExecutionMode(): 'ide' | 'api' | 'terminal' | 'background' | 'manual' {
+    return this.config.get('taskExecution.mode', 'ide');
+  }
+
+  get anthropicApiKey(): string {
+    return this.config.get('anthropicApiKey', '');
   }
 
   get taskAutoAccept(): boolean {
-    return this.config.get('taskExecution.autoAccept', false);
+    return this.config.get('taskExecution.autoAccept', true);
   }
 
   get isConfigured(): boolean {

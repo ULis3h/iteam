@@ -72,6 +72,14 @@ class TaskService {
     }
 
     /**
+     * 重新分发任务给 Agent
+     */
+    async redispatchTask(id: string): Promise<TaskResponse> {
+        const response = await api.post<TaskResponse>(`/tasks/${id}/redispatch`)
+        return response.data
+    }
+
+    /**
      * 删除任务
      */
     async deleteTask(id: string): Promise<void> {
