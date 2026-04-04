@@ -10,7 +10,6 @@ import {
   Network,
   Palette,
   Bot,
-  Workflow,
   ClipboardList,
   GitGraph,
   BarChart3

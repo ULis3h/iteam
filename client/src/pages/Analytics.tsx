@@ -19,7 +19,7 @@ import {
 import { BarChart3, TrendingUp, Users, PieChart } from 'lucide-react'
 import api from '../services/api'
 import { useTheme } from '../contexts/ThemeContext'
-import type { Project, Device } from '../types'
+// types used implicitly via api responses
 
 export default function Analytics() {
     const { theme } = useTheme()

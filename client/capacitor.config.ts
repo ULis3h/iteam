@@ -13,7 +13,8 @@ const config: CapacitorConfig = {
     },
     ios: {
         contentInset: 'automatic',
-        preferredContentMode: 'mobile',
+        preferredContentMode: 'desktop',  // iPad 使用桌面视图而非手机视图
+        allowsLinkPreview: true,
         scheme: 'iTeam Manager',
     },
     plugins: {
