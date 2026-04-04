@@ -1,6 +1,9 @@
 import { Server as SocketIOServer, Socket } from 'socket.io'
 import { PrismaClient } from '@prisma/client'
 import logger from '../utils/logger.js'
+import { getMemoryService } from '../services/memory.service.js'
+import { getAutoExtractMemoryService } from '../services/auto-extract-memory.service.js'
+import { getSessionMemoryService } from '../services/session-memory.service.js'
 
 interface DeviceStatus {
   deviceId: string
@@ -166,6 +169,33 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
       }
     })
 
+    // ============== Agent 持久记忆层 ==============
+
+    // Agent 提交对话上下文，触发记忆提取
+    socket.on('memory:save', async (data: {
+      deviceId: string
+      messages: Array<{ role: 'user' | 'assistant'; content: string }>
+      metadata?: Record<string, any>
+    }) => {
+      try {
+        const memoryService = getMemoryService(prisma)
+        const memories = await memoryService.add(data.messages, data.deviceId, data.metadata)
+
+        // 广播记忆更新通知
+        io.emit('memory:update', {
+          deviceId: data.deviceId,
+          memories,
+          action: 'add',
+          timestamp: new Date().toISOString(),
+        })
+
+        logger.info(`[WebSocket] 记忆提取完成: ${memories.length} 条 (device: ${data.deviceId})`)
+      } catch (error) {
+        logger.error('[WebSocket] memory:save 处理失败:', error)
+        socket.emit('error', { message: 'Failed to save memory' })
+      }
+    })
+
     // Disconnection
     socket.on('disconnect', async () => {
       logger.info(`Client disconnected: ${socket.id}`)
@@ -220,6 +250,19 @@ export function setupWebSocket(io: SocketIOServer, prisma: PrismaClient) {
             startTime: new Date(data.startTime),
           },
         })
+
+        // 初始化会话记忆（首次创建时）
+        const sessionMemoryService = getSessionMemoryService(prisma)
+        await sessionMemoryService.initializeMemory(session.id)
+
+        // 会话完成时触发自动记忆提取
+        if (data.status === 'completed' || data.status === 'failed') {
+          const autoExtract = getAutoExtractMemoryService(prisma)
+          // 异步执行，不阻塞响应
+          autoExtract.onSessionCompleted(session.id).catch((err) => {
+            logger.error(`[AutoExtract] Background extraction failed for session ${session.id}:`, err)
+          })
+        }
 
         // 广播给订阅此设备的客户端
         io.emit('trace:session:update', session)

@@ -18,6 +18,7 @@ import agentRoutes from './routes/agents.js'
 import workflowRoutes from './routes/workflows.js'
 import teamRoutes from './routes/teams.js'
 import tracesRoutes from './routes/traces.js'
+import { createMemoryRouter } from './routes/memories.js'
 import { authMiddleware } from './middleware/auth.js'
 
 // Load environment variables
@@ -79,6 +80,7 @@ const deviceApiKeyMiddleware = (req: express.Request, res: express.Response, nex
 }
 app.use('/api/devices', deviceApiKeyMiddleware, createDeviceRouter(io))
 app.use('/api/tasks', deviceApiKeyMiddleware, createTaskRouter(io))
+app.use('/api/memories', deviceApiKeyMiddleware, createMemoryRouter())
 
 // 保护路由 - 需要登录
 app.use('/api/projects', authMiddleware, projectRoutes)

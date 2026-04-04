@@ -83,6 +83,7 @@ model Device {
   workflowExecutions WorkflowExecution[]
   teamMembers        TeamMember[]
   taskSessions       TaskSession[]
+  memories           Memory[]
 
   @@map("devices")
 }
@@ -270,15 +271,17 @@ model TeamMember {
 
 // 任务执行会话
 model TaskSession {
-  id          String   @id @default(uuid())
-  taskId      String?            // 关联的任务ID（可选）
-  deviceId    String
-  status      String   @default("running")  // running, completed, failed, paused
-  title       String?            // 会话标题
-  startTime   DateTime @default(now())
-  endTime     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  taskId        String?            // 关联的任务ID（可选）
+  deviceId      String
+  status        String   @default("running")  // running, completed, failed, paused
+  title         String?            // 会话标题
+  startTime     DateTime @default(now())
+  endTime       DateTime?
+  sessionMemory String?            // 结构化会话笔记 (Markdown)
+  memoryVersion Int      @default(0)  // 笔记版本号，用于乐观并发控制
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   device      Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
@@ -305,5 +308,24 @@ model TraceEntry {
   @@index([sessionId])
   @@index([type])
   @@map("trace_entries")
+}
+
+// ==================== Agent 持久记忆层 (mem0) ====================
+
+// 记忆元数据索引（内容由 mem0 云端管理）
+model Memory {
+  id          String   @id              // 使用 mem0 返回的 ID
+  deviceId    String                    // 来源设备
+  summary     String                    // 记忆内容摘要（同步自 mem0）
+  category    String?                   // 分类标签
+  mem0UserId  String                    // mem0 中的 user_id
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([category])
+  @@map("memories")
 }
 

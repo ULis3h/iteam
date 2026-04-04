@@ -12,6 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { PrismaClient } from '@prisma/client'
+import { getMemoryService } from '../services/memory.service.js'
 
 const prisma = new PrismaClient()
 
@@ -468,6 +469,102 @@ server.tool(
                             null,
                             2
                         ),
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
+// ============== Memory Tools ==============
+
+// Tool: 语义搜索 Agent 记忆
+server.tool(
+    'search_memories',
+    '在 iTeam Agent 记忆库中进行语义搜索，返回与查询最相关的记忆',
+    {
+        query: z.string().describe('搜索查询（支持自然语言语义搜索）'),
+        deviceId: z.string().optional().describe('按设备ID筛选，不指定则搜索所有设备记忆'),
+        limit: z.number().optional().default(10).describe('返回结果数量限制'),
+    },
+    async ({ query, deviceId, limit }) => {
+        try {
+            const memoryService = getMemoryService(prisma)
+            const results = await memoryService.search(query, deviceId, { limit })
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify(results, null, 2),
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
+// Tool: 从对话中提取记忆
+server.tool(
+    'add_memory',
+    '从对话消息中提取并保存 Agent 记忆。mem0 会自动识别关键信息进行存储。',
+    {
+        messages: z.array(z.object({
+            role: z.enum(['user', 'assistant']).describe('消息角色'),
+            content: z.string().describe('消息内容'),
+        })).describe('对话消息列表'),
+        deviceId: z.string().describe('来源设备ID'),
+    },
+    async ({ messages, deviceId }) => {
+        try {
+            const memoryService = getMemoryService(prisma)
+            const memories = await memoryService.add(messages, deviceId)
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `已提取 ${memories.length} 条记忆:\n\n${JSON.stringify(memories, null, 2)}`,
+                    },
+                ],
+            }
+        } catch (error: any) {
+            return {
+                content: [{ type: 'text', text: `Error: ${error.message}` }],
+                isError: true,
+            }
+        }
+    }
+)
+
+// Tool: 列出设备记忆
+server.tool(
+    'list_memories',
+    '列出 iTeam Agent 的记忆，可按设备和分类筛选',
+    {
+        deviceId: z.string().optional().describe('按设备ID筛选'),
+        category: z.string().optional().describe('按分类筛选'),
+    },
+    async ({ deviceId, category }) => {
+        try {
+            const memoryService = getMemoryService(prisma)
+            const memories = await memoryService.getAll(deviceId, category)
+
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `共 ${memories.length} 条记忆:\n\n${JSON.stringify(memories, null, 2)}`,
                     },
                 ],
             }
