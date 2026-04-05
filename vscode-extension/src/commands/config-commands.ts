@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ConfigService } from '../services/config-service';
 import type { SocketService } from '../services/socket-service';
+import { t } from '../i18n';
 
 export function registerConfigCommands(
   context: vscode.ExtensionContext,
@@ -21,8 +22,8 @@ export function registerConfigCommands(
       ];
 
       const selected = await vscode.window.showQuickPick(roles, {
-        title: 'Set Device Role',
-        placeHolder: `Current: ${configService.role}`,
+        title: t('cmd.setRoleTitle'),
+        placeHolder: t('cmd.setRolePlaceholder', configService.role),
       });
 
       if (selected) {
@@ -30,17 +31,17 @@ export function registerConfigCommands(
         if (socketService.isConnected) {
           socketService.updateAgentConfig();
         }
-        vscode.window.showInformationMessage(`iTeam: Role set to ${selected}`);
+        vscode.window.showInformationMessage(t('cmd.roleSetTo', selected));
       }
     }),
 
     vscode.commands.registerCommand('iteam.setSkills', async () => {
       const current = configService.skills.join(', ');
       const input = await vscode.window.showInputBox({
-        title: 'Set Device Skills',
-        prompt: 'Enter skills separated by commas',
+        title: t('cmd.setSkillsTitle'),
+        prompt: t('cmd.setSkillsPrompt'),
         value: current,
-        placeHolder: 'typescript, react, nodejs',
+        placeHolder: t('cmd.setSkillsPlaceholder'),
       });
 
       if (input !== undefined) {
@@ -53,7 +54,7 @@ export function registerConfigCommands(
           socketService.updateAgentConfig();
         }
         vscode.window.showInformationMessage(
-          `iTeam: Skills set to ${skills.join(', ')}`,
+          t('cmd.skillsSetTo', skills.join(', ')),
         );
       }
     }),

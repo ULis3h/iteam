@@ -66,6 +66,14 @@ export class ConfigService implements vscode.Disposable {
     return this.config.get('taskExecution.autoAccept', true);
   }
 
+  get language(): 'en' | 'zh-CN' {
+    return this.config.get<'en' | 'zh-CN'>('language', 'en') || 'en';
+  }
+
+  async updateLanguage(lang: 'en' | 'zh-CN'): Promise<void> {
+    await this.config.update('language', lang, vscode.ConfigurationTarget.Global);
+  }
+
   get isConfigured(): boolean {
     return this.serverUrl.length > 0;
   }

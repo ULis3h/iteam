@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { Task } from '../types';
 import type { TaskService } from '../services/task-service';
+import { t } from '../i18n';
 
 type TreeItem = TaskGroupItem | TaskItem;
 
@@ -60,16 +61,16 @@ export class TaskTreeProvider implements vscode.TreeDataProvider<TreeItem>, vsco
       const queue = this.taskService.queue;
 
       if (running) {
-        groups.push(new TaskGroupItem('Running', [running]));
+        groups.push(new TaskGroupItem(t('taskTree.running'), [running]));
       }
 
       const pending = queue.filter((t) => t.status === 'pending');
       if (pending.length > 0) {
-        groups.push(new TaskGroupItem('Pending', pending));
+        groups.push(new TaskGroupItem(t('taskTree.pending'), pending));
       }
 
       if (groups.length === 0) {
-        return [new vscode.TreeItem('No tasks') as TreeItem];
+        return [new vscode.TreeItem(t('taskTree.noTasks')) as TreeItem];
       }
 
       return groups;

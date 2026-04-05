@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { COMMANDS, STATUS_BAR_ID } from '../utils/constants';
 import type { ConnectionState } from '../types';
+import { t } from '../i18n';
 
 export class StatusBarProvider implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
@@ -19,33 +20,33 @@ export class StatusBarProvider implements vscode.Disposable {
   update(state: ConnectionState, detail?: string): void {
     switch (state) {
       case 'disconnected':
-        this.statusBarItem.text = '$(debug-disconnect) iTeam: Off';
-        this.statusBarItem.tooltip = 'iTeam: Disconnected. Click to connect.';
+        this.statusBarItem.text = `$(debug-disconnect) ${t('statusBar.off')}`;
+        this.statusBarItem.tooltip = t('statusBar.tooltip.disconnected');
         this.statusBarItem.backgroundColor = undefined;
         this.statusBarItem.command = COMMANDS.CONNECT;
         break;
 
       case 'connecting':
-        this.statusBarItem.text = '$(sync~spin) iTeam: ...';
-        this.statusBarItem.tooltip = `iTeam: Connecting...`;
+        this.statusBarItem.text = `$(sync~spin) ${t('statusBar.connecting')}`;
+        this.statusBarItem.tooltip = t('statusBar.tooltip.connecting');
         this.statusBarItem.backgroundColor = undefined;
         this.statusBarItem.command = undefined;
         break;
 
       case 'connected':
         this.statusBarItem.text = detail
-          ? `$(pulse) iTeam: ${detail}`
-          : '$(check) iTeam: Idle';
+          ? `$(pulse) ${t('statusBar.working', detail)}`
+          : `$(check) ${t('statusBar.idle')}`;
         this.statusBarItem.tooltip = detail
-          ? `iTeam: Working — ${detail}`
-          : 'iTeam: Connected. Click for options.';
+          ? t('statusBar.tooltip.working', detail)
+          : t('statusBar.tooltip.connected');
         this.statusBarItem.backgroundColor = undefined;
         this.statusBarItem.command = COMMANDS.SHOW_DEVICE_INFO;
         break;
 
       case 'error':
-        this.statusBarItem.text = '$(error) iTeam: Error';
-        this.statusBarItem.tooltip = 'iTeam: Connection error. Click to reconnect.';
+        this.statusBarItem.text = `$(error) ${t('statusBar.error')}`;
+        this.statusBarItem.tooltip = t('statusBar.tooltip.error');
         this.statusBarItem.backgroundColor = new vscode.ThemeColor(
           'statusBarItem.errorBackground',
         );

@@ -11,6 +11,8 @@ import { registerConnectionCommands } from './commands/connection-commands';
 import { registerTaskCommands } from './commands/task-commands';
 import { registerConfigCommands } from './commands/config-commands';
 import { logger } from './utils/logger';
+import { initLocale, setLocale, t } from './i18n';
+import type { Locale } from './i18n';
 
 let configService: ConfigService;
 let socketService: SocketService;
@@ -24,6 +26,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Initialize services
   configService = new ConfigService();
+
+  // Initialize i18n from config
+  initLocale();
+
   socketService = new SocketService(configService);
   workspaceService = new WorkspaceService();
   taskService = new TaskService(socketService, configService, workspaceService);
@@ -72,8 +78,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
     socketService.onConfigUpdated((data) => {
       const msg = data.oldRole
-        ? `iTeam: Role changed ${data.oldRole} -> ${data.role}`
-        : `iTeam: Config updated — role: ${data.role}`;
+        ? t('ext.roleChanged', data.oldRole, data.role)
+        : t('ext.configUpdated', data.role);
       vscode.window.showInformationMessage(msg);
     }),
 
@@ -91,6 +97,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Re-register when config changes
     configService.onDidChange(() => {
+      // Check for language change
+      const newLang = configService.language;
+      setLocale(newLang);
+
+      // Refresh UI components that cache rendered content
+      statusBar.update(socketService.state);
+
       if (socketService.isConnected) {
         socketService.updateAgentConfig();
         logger.info('Config changed, updated agent config on server');
@@ -102,6 +115,25 @@ export function activate(context: vscode.ExtensionContext): void {
   registerConnectionCommands(context, socketService, configService);
   registerTaskCommands(context, taskService);
   registerConfigCommands(context, configService, socketService);
+
+  // Register language switch command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('iteam.switchLanguage', async () => {
+      const items = [
+        { label: 'English', value: 'en' as Locale },
+        { label: '中文（简体）', value: 'zh-CN' as Locale },
+      ];
+
+      const selected = await vscode.window.showQuickPick(items, {
+        title: t('cmd.switchLanguage'),
+        placeHolder: configService.language === 'en' ? 'English' : '中文（简体）',
+      });
+
+      if (selected) {
+        await configService.updateLanguage(selected.value);
+      }
+    }),
+  );
 
   // Auto-connect if configured
   if (configService.autoConnect && configService.isConfigured) {

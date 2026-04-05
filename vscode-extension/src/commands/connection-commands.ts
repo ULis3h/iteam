@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { SocketService } from '../services/socket-service';
 import type { ConfigService } from '../services/config-service';
 import { logger } from '../utils/logger';
+import { t } from '../i18n';
 
 export function registerConnectionCommands(
   context: vscode.ExtensionContext,
@@ -11,16 +12,16 @@ export function registerConnectionCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand('iteam.connect', async () => {
       if (socketService.isConnected) {
-        vscode.window.showInformationMessage('iTeam: Already connected.');
+        vscode.window.showInformationMessage(t('cmd.alreadyConnected'));
         return;
       }
 
       if (!configService.isConfigured) {
         const action = await vscode.window.showWarningMessage(
-          'iTeam: Server URL not configured.',
-          'Open Settings',
+          t('cmd.serverNotConfigured'),
+          t('cmd.openSettings'),
         );
-        if (action === 'Open Settings') {
+        if (action === t('cmd.openSettings')) {
           vscode.commands.executeCommand(
             'workbench.action.openSettings',
             'iteam.serverUrl',
@@ -31,38 +32,38 @@ export function registerConnectionCommands(
 
       try {
         await socketService.connect();
-        vscode.window.showInformationMessage('iTeam: Connected to server.');
+        vscode.window.showInformationMessage(t('cmd.connectedToServer'));
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         logger.error(`Connect failed: ${msg}`);
-        vscode.window.showErrorMessage(`iTeam: Connection failed — ${msg}`);
+        vscode.window.showErrorMessage(t('cmd.connectionFailed', msg));
       }
     }),
 
     vscode.commands.registerCommand('iteam.disconnect', () => {
       if (!socketService.isConnected) {
-        vscode.window.showInformationMessage('iTeam: Not connected.');
+        vscode.window.showInformationMessage(t('cmd.notConnected'));
         return;
       }
 
       socketService.disconnect();
-      vscode.window.showInformationMessage('iTeam: Disconnected.');
+      vscode.window.showInformationMessage(t('cmd.disconnected'));
     }),
 
     vscode.commands.registerCommand('iteam.showDeviceInfo', () => {
       const deviceId = socketService.getDeviceId();
       const items = [
-        `Device ID: ${deviceId || 'N/A'}`,
-        `Status: ${socketService.state}`,
-        `Server: ${configService.serverUrl}`,
-        `Role: ${configService.role}`,
-        `Skills: ${configService.skills.join(', ')}`,
-        `AI: ${configService.aiProvider} / ${configService.aiModel}`,
+        t('cmd.deviceId', deviceId || 'N/A'),
+        t('cmd.status', socketService.state),
+        t('cmd.server', configService.serverUrl),
+        t('cmd.role', configService.role),
+        t('cmd.skills', configService.skills.join(', ')),
+        t('cmd.ai', `${configService.aiProvider} / ${configService.aiModel}`),
       ];
 
       vscode.window.showQuickPick(items, {
-        title: 'iTeam Device Info',
-        placeHolder: 'Device information',
+        title: t('cmd.deviceInfoTitle'),
+        placeHolder: t('cmd.deviceInfoPlaceholder'),
       });
     }),
 

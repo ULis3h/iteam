@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { logger } from '../utils/logger';
+import { t } from '../i18n';
 import type { Task, TaskType } from '../types';
 import type { SocketService } from './socket-service';
 import type { ConfigService } from './config-service';
@@ -52,12 +53,12 @@ export class TaskService implements vscode.Disposable {
     }
 
     const action = await vscode.window.showInformationMessage(
-      `iTeam Task: ${task.title || task.description}`,
-      'Execute',
-      'Defer',
+      t('task.received', task.title || task.description || ''),
+      t('task.execute'),
+      t('task.defer'),
     );
 
-    if (action === 'Execute') {
+    if (action === t('task.execute')) {
       await this.executeTask(task.id);
     }
   }
@@ -101,7 +102,7 @@ export class TaskService implements vscode.Disposable {
         logger.info(`Manual mode — task prompt:\n${this.buildPrompt(task)}`);
         await vscode.env.clipboard.writeText(this.buildPrompt(task));
         vscode.window.showInformationMessage(
-          'iTeam: Task prompt copied to clipboard.',
+          t('task.promptCopied'),
         );
       }
     } catch (error) {
@@ -199,7 +200,7 @@ export class TaskService implements vscode.Disposable {
     const apiKey = this.configService.anthropicApiKey;
     if (!apiKey) {
       throw new Error(
-        'Anthropic API key not configured. Set "iteam.anthropicApiKey" in settings.',
+        t('task.apiKeyNotConfigured'),
       );
     }
 
@@ -213,8 +214,8 @@ export class TaskService implements vscode.Disposable {
     }
     ideOutputChannel.clear();
     ideOutputChannel.show(true);
-    ideOutputChannel.appendLine(`=== Task: ${task.title || task.type} ===`);
-    ideOutputChannel.appendLine(`Model: ${model} (Anthropic API)`);
+    ideOutputChannel.appendLine(t('task.taskTitle', task.title || task.type));
+    ideOutputChannel.appendLine(t('task.modelApi', model));
     ideOutputChannel.appendLine('---');
 
     const requestBody = JSON.stringify({
@@ -282,7 +283,7 @@ export class TaskService implements vscode.Disposable {
 
     ideOutputChannel.appendLine('');
     ideOutputChannel.appendLine('---');
-    ideOutputChannel.appendLine('=== Task completed ===');
+    ideOutputChannel.appendLine(t('task.taskCompleted'));
 
     task.status = 'completed';
     this.socketService.updateTaskStatus(task.id, 'completed', { output: fullOutput });
@@ -323,8 +324,8 @@ export class TaskService implements vscode.Disposable {
     }
     ideOutputChannel.clear();
     ideOutputChannel.show(true);
-    ideOutputChannel.appendLine(`=== Task: ${task.title || task.type} ===`);
-    ideOutputChannel.appendLine(`Model: ${model.name}`);
+    ideOutputChannel.appendLine(t('task.taskTitle', task.title || task.type));
+    ideOutputChannel.appendLine(t('task.model', model.name));
     ideOutputChannel.appendLine('---');
 
     // Send request and stream response
@@ -338,7 +339,7 @@ export class TaskService implements vscode.Disposable {
 
     ideOutputChannel.appendLine('');
     ideOutputChannel.appendLine('---');
-    ideOutputChannel.appendLine('=== Task completed ===');
+    ideOutputChannel.appendLine(t('task.taskCompleted'));
 
     task.status = 'completed';
     this.socketService.updateTaskStatus(task.id, 'completed', { output: fullOutput });

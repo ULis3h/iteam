@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { TaskService } from '../services/task-service';
 import { logger } from '../utils/logger';
+import { t } from '../i18n';
 
 export function registerTaskCommands(
   context: vscode.ExtensionContext,
@@ -11,13 +12,13 @@ export function registerTaskCommands(
       const queue = taskService.queue;
 
       if (queue.length === 0) {
-        vscode.window.showInformationMessage('iTeam: No pending tasks.');
+        vscode.window.showInformationMessage(t('cmd.noPendingTasks'));
         return;
       }
 
       if (taskService.running) {
         vscode.window.showWarningMessage(
-          `iTeam: A task is already running — ${taskService.running.title || taskService.running.id}`,
+          t('cmd.taskAlreadyRunning', taskService.running.title || taskService.running.id),
         );
         return;
       }
@@ -35,8 +36,8 @@ export function registerTaskCommands(
       }));
 
       const selected = await vscode.window.showQuickPick(items, {
-        title: 'Select Task to Execute',
-        placeHolder: 'Choose a task from the queue',
+        title: t('cmd.selectTaskTitle'),
+        placeHolder: t('cmd.selectTaskPlaceholder'),
       });
 
       if (selected) {

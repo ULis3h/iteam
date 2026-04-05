@@ -1,7 +1,7 @@
 {
   "name": "iteam-vscode",
-  "displayName": "iTeam - Multi-Device Collaboration",
-  "description": "Connect VS Code to iTeam server for AI-driven multi-device collaboration",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "0.1.0",
   "publisher": "iteam",
   "license": "MIT",
@@ -19,62 +19,67 @@
     "commands": [
       {
         "command": "iteam.connect",
-        "title": "Connect to Server",
+        "title": "%cmd.connect%",
         "category": "iTeam"
       },
       {
         "command": "iteam.disconnect",
-        "title": "Disconnect from Server",
+        "title": "%cmd.disconnect%",
         "category": "iTeam"
       },
       {
         "command": "iteam.setRole",
-        "title": "Set Device Role",
+        "title": "%cmd.setRole%",
         "category": "iTeam"
       },
       {
         "command": "iteam.setSkills",
-        "title": "Set Device Skills",
+        "title": "%cmd.setSkills%",
         "category": "iTeam"
       },
       {
         "command": "iteam.executeTask",
-        "title": "Execute Assigned Task",
+        "title": "%cmd.executeTask%",
         "category": "iTeam"
       },
       {
         "command": "iteam.showDeviceInfo",
-        "title": "Show Device Info",
+        "title": "%cmd.showDeviceInfo%",
         "category": "iTeam"
       },
       {
         "command": "iteam.showLogs",
-        "title": "Show Logs",
+        "title": "%cmd.showLogs%",
         "category": "iTeam"
       },
       {
         "command": "iteam.openDashboard",
-        "title": "Open Dashboard",
+        "title": "%cmd.openDashboard%",
+        "category": "iTeam"
+      },
+      {
+        "command": "iteam.switchLanguage",
+        "title": "%cmd.switchLanguage%",
         "category": "iTeam"
       }
     ],
     "configuration": {
-      "title": "iTeam",
+      "title": "%config.title%",
       "properties": {
         "iteam.serverUrl": {
           "type": "string",
           "default": "http://localhost:3000",
-          "description": "URL of the iTeam server"
+          "description": "%config.serverUrl%"
         },
         "iteam.apiKey": {
           "type": "string",
           "default": "",
-          "description": "API key for device authentication"
+          "description": "%config.apiKey%"
         },
         "iteam.deviceName": {
           "type": "string",
           "default": "",
-          "description": "Device name for registration (defaults to hostname)"
+          "description": "%config.deviceName%"
         },
         "iteam.role": {
           "type": "string",
@@ -89,7 +94,7 @@
             "designer"
           ],
           "default": "fullstack",
-          "description": "Device role in the team"
+          "description": "%config.role%"
         },
         "iteam.skills": {
           "type": "array",
@@ -99,7 +104,7 @@
           "default": [
             "typescript"
           ],
-          "description": "Skill tags for this device"
+          "description": "%config.skills%"
         },
         "iteam.aiProvider": {
           "type": "string",
@@ -109,29 +114,29 @@
             "custom"
           ],
           "default": "anthropic",
-          "description": "AI provider used by this device"
+          "description": "%config.aiProvider%"
         },
         "iteam.aiModel": {
           "type": "string",
           "default": "claude-sonnet-4-5",
-          "description": "AI model identifier"
+          "description": "%config.aiModel%"
         },
         "iteam.autoConnect": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically connect when VS Code starts"
+          "description": "%config.autoConnect%"
         },
         "iteam.heartbeatInterval": {
           "type": "number",
           "default": 30000,
           "minimum": 5000,
           "maximum": 120000,
-          "description": "Heartbeat interval in milliseconds"
+          "description": "%config.heartbeatInterval%"
         },
         "iteam.anthropicApiKey": {
           "type": "string",
           "default": "",
-          "description": "Anthropic API key for direct API execution mode"
+          "description": "%config.anthropicApiKey%"
         },
         "iteam.taskExecution.mode": {
           "type": "string",
@@ -143,12 +148,25 @@
             "manual"
           ],
           "default": "ide",
-          "description": "How to execute assigned tasks: api (Anthropic HTTP API), ide (VS Code built-in LM), terminal (claude CLI), background (headless CLI), manual (copy prompt)"
+          "description": "%config.taskExecutionMode%"
         },
         "iteam.taskExecution.autoAccept": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically accept and execute assigned tasks"
+          "description": "%config.taskAutoAccept%"
+        },
+        "iteam.language": {
+          "type": "string",
+          "enum": [
+            "en",
+            "zh-CN"
+          ],
+          "default": "en",
+          "description": "%config.language%",
+          "enumDescriptions": [
+            "English",
+            "中文（简体）"
+          ]
         }
       }
     },
@@ -156,7 +174,7 @@
       "activitybar": [
         {
           "id": "iteam-container",
-          "title": "iTeam",
+          "title": "%view.container.title%",
           "icon": "resources/icons/iteam-logo.svg"
         }
       ]
@@ -166,11 +184,11 @@
         {
           "type": "webview",
           "id": "iteam-sidebar",
-          "name": "Device Status"
+          "name": "%view.sidebar.name%"
         },
         {
           "id": "iteam-tasks",
-          "name": "Task Queue"
+          "name": "%view.tasks.name%"
         }
       ]
     }

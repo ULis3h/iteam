@@ -4,6 +4,7 @@ import type { ConfigService } from '../services/config-service';
 import type { TaskService } from '../services/task-service';
 import type { TraceService } from '../services/trace-service';
 import type { WorkspaceService } from '../services/workspace-service';
+import { t } from '../i18n';
 
 export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private view?: vscode.WebviewView;
@@ -77,8 +78,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         : '<span class="dot red"></span>';
 
     const connectBtn = state === 'connected'
-      ? '<button onclick="send(\'disconnect\')">Disconnect</button>'
-      : '<button onclick="send(\'connect\')">Connect</button>';
+      ? `<button onclick="send('disconnect')">${t('sidebar.disconnect')}</button>`
+      : `<button onclick="send('connect')">${t('sidebar.connect')}</button>`;
 
     const skillsHtml = skills.map((s) => `<span class="tag">${s}</span>`).join('');
 
@@ -122,38 +123,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
 </head>
 <body>
   <div class="section">
-    <div class="section-title">Connection</div>
+    <div class="section-title">${t('sidebar.connection')}</div>
     <div class="row">${statusDot} ${state} ${connectBtn}</div>
     <div class="mono">${this.configService.serverUrl}</div>
   </div>
 
   <div class="section">
-    <div class="section-title">Device</div>
-    <div class="row"><strong>${this.configService.deviceName || 'Auto'}</strong></div>
+    <div class="section-title">${t('sidebar.device')}</div>
+    <div class="row"><strong>${this.configService.deviceName || t('sidebar.deviceAuto')}</strong></div>
     <div class="row"><span class="tag">${role}</span> ${skillsHtml}</div>
     ${deviceId ? `<div class="mono">ID: ${deviceId.slice(0, 8)}...</div>` : ''}
   </div>
 
   <div class="section">
-    <div class="section-title">Workspace</div>
-    <div>${ctx.projectName || 'No workspace'}</div>
-    ${ctx.gitBranch ? `<div class="mono">branch: ${ctx.gitBranch}</div>` : ''}
+    <div class="section-title">${t('sidebar.workspace')}</div>
+    <div>${ctx.projectName || t('sidebar.noWorkspace')}</div>
+    ${ctx.gitBranch ? `<div class="mono">${t('sidebar.branch')}: ${ctx.gitBranch}</div>` : ''}
   </div>
 
   <div class="section">
-    <div class="section-title">Tasks (${queue.length + (running ? 1 : 0)})</div>
-    ${taskRows}${pendingRows || '<div class="mono">No tasks</div>'}
+    <div class="section-title">${t('sidebar.tasks')} (${queue.length + (running ? 1 : 0)})</div>
+    ${taskRows}${pendingRows || `<div class="mono">${t('sidebar.noTasks')}</div>`}
   </div>
 
   <div class="section">
-    <div class="section-title">Recent Traces</div>
-    ${traceRows || '<div class="mono">No traces</div>'}
+    <div class="section-title">${t('sidebar.recentTraces')}</div>
+    ${traceRows || `<div class="mono">${t('sidebar.noTraces')}</div>`}
   </div>
 
   <div class="section">
-    <span class="link" onclick="send('openSettings')">Settings</span>
+    <span class="link" onclick="send('openSettings')">${t('sidebar.settings')}</span>
     &nbsp;&middot;&nbsp;
-    <span class="link" onclick="send('openDashboard')">Dashboard</span>
+    <span class="link" onclick="send('openDashboard')">${t('sidebar.dashboard')}</span>
   </div>
 
   <script>

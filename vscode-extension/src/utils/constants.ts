@@ -45,6 +45,7 @@ export const COMMANDS = {
   SHOW_DEVICE_INFO: 'iteam.showDeviceInfo',
   SHOW_LOGS: 'iteam.showLogs',
   OPEN_DASHBOARD: 'iteam.openDashboard',
+  SWITCH_LANGUAGE: 'iteam.switchLanguage',
 } as const;
 
 // Extension identifiers
