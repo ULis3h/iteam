@@ -1,304 +1,168 @@
-import { useState, useEffect } from 'react'
-import { Bot, Users, Zap, ChevronRight, Briefcase, MessageSquare, Target, Link2 } from 'lucide-react'
-import api from '../services/api'
-import { useTheme } from '../contexts/ThemeContext'
+import { Bot, Cpu, HardDrive, Pencil, Plus, Server, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { AgentForm } from '../components/AgentForm'
+import { AgentStateBadge } from '../components/StatusBadge'
+import { Card, EmptyState, ErrorBanner, PageHeader, Section } from '../components/ui'
+import { api } from '../lib/api'
+import { useApp } from '../lib/app'
+import { relativeTime } from '../lib/format'
+import { useT } from '../lib/i18n'
+import { useSocketEvent } from '../lib/socket'
+import type { Agent, AgentInput, Runner } from '../types'
 
-interface AgentTemplate {
-  id: string
-  code: string
-  name: string
-  title: string
-  icon: string
-  role: string
-  experience: string | null
-  expertise: string[]
-  communication: string | null
-  principles: string[]
-  workflows: string[]
-  isBuiltIn: boolean
-  devices: { id: string; name: string; status: string }[]
-}
+export function AgentsPage() {
+  const { t, locale } = useT()
+  const { system } = useApp()
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [runners, setRunners] = useState<Runner[]>([])
+  const [editing, setEditing] = useState<Agent | null>(null)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-interface Workflow {
-  id: string
-  code: string
-  name: string
-  description: string
-  phase: number
-  agentCode: string
-  category: string
-}
-
-export default function Agents() {
-  const { theme } = useTheme()
-  const [agents, setAgents] = useState<AgentTemplate[]>([])
-  const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [selectedAgent, setSelectedAgent] = useState<AgentTemplate | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchData()
+  const load = useCallback(async () => {
+    try {
+      const [a, r] = await Promise.all([api.agents(), api.runners()])
+      setAgents(a)
+      setRunners(r)
+    } catch (err) {
+      setError((err as Error).message)
+    }
   }, [])
 
-  const fetchData = async () => {
+  useEffect(() => {
+    void load()
+  }, [load])
+  useSocketEvent(['agent:changed', 'agent:deleted', 'runner:changed', 'runner:deleted', 'step:changed'], load)
+
+  const providerLabel = (id: string) => system?.providers.find((p) => p.id === id)?.label ?? id
+
+  const remove = async (agent: Agent) => {
+    if (agent.busy > 0) return setError(t('agents.deleteBusy'))
+    if (!confirm(t('common.confirmDelete', { name: agent.name }))) return
     try {
-      const [agentsRes, workflowsRes] = await Promise.all([
-        api.get('/agents'),
-        api.get('/workflows')
-      ])
-      setAgents(agentsRes.data)
-      setWorkflows(workflowsRes.data)
-      if (agentsRes.data.length > 0 && !selectedAgent) {
-        setSelectedAgent(agentsRes.data[0])
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error)
-    } finally {
-      setLoading(false)
+      await api.deleteAgent(agent.id)
+      await load()
+    } catch (err) {
+      setError((err as Error).message)
     }
   }
 
-  const getAgentWorkflows = (agentCode: string) => {
-    return workflows.filter(w => w.agentCode === agentCode)
-  }
-
-  const getPhaseLabel = (phase: number) => {
-    const labels: Record<number, string> = {
-      1: '分析',
-      2: '规划',
-      3: '方案',
-      4: '实施'
-    }
-    return labels[phase] || `Phase ${phase}`
-  }
-
-  const getPhaseColor = (phase: number) => {
-    const colors: Record<number, string> = {
-      1: 'bg-blue-500',
-      2: 'bg-purple-500',
-      3: 'bg-orange-500',
-      4: 'bg-green-500'
-    }
-    return colors[phase] || 'bg-gray-500'
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-      case 'idle':
-        return 'bg-green-500'
-      case 'working':
-        return 'bg-yellow-500'
-      default:
-        return 'bg-gray-400'
-    }
-  }
-
-  const cardBg = theme === 'kanban'
-    ? 'bg-gray-800/90 border-gray-700'
-    : 'bg-white/90 border-gray-200'
-
-  const textPrimary = theme === 'kanban' ? 'text-white' : 'text-gray-900'
-  const textSecondary = theme === 'kanban' ? 'text-gray-400' : 'text-gray-600'
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    )
+  const submit = async (data: AgentInput) => {
+    if (editing) await api.updateAgent(editing.id, data)
+    else await api.createAgent(data)
+    await load()
   }
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className={`text-2xl font-bold ${textPrimary}`}>
-            Agent 模板
-          </h1>
-          <p className={`mt-1 ${textSecondary}`}>
-            BMAD 风格的专业 AI Agent 角色定义
-          </p>
-        </div>
-        <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-100'}`}>
-          <Bot className="h-5 w-5 text-primary-500" />
-          <span className={`font-medium ${textPrimary}`}>{agents.length} 个模板</span>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        title={t('agents.title')}
+        subtitle={t('agents.subtitle')}
+        actions={
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setEditing(null)
+              setOpen(true)
+            }}
+          >
+            <Plus size={15} /> {t('agents.new')}
+          </button>
+        }
+      />
+      <ErrorBanner message={error} onClose={() => setError(null)} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Agent 列表 */}
-        <div className="lg:col-span-1 space-y-3">
-          {agents.map((agent) => (
-            <button
-              key={agent.id}
-              onClick={() => setSelectedAgent(agent)}
-              className={`w-full text-left p-4 rounded-xl border backdrop-blur-sm transition-all duration-200 ${cardBg} ${
-                selectedAgent?.id === agent.id
-                  ? 'ring-2 ring-primary-500 border-primary-500'
-                  : 'hover:border-primary-300'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="text-3xl">{agent.icon}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <span className={`font-semibold ${textPrimary}`}>{agent.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-100'} ${textSecondary}`}>
-                      {agent.code}
-                    </span>
-                  </div>
-                  <p className={`text-sm ${textSecondary}`}>{agent.title}</p>
-                </div>
-                <ChevronRight className={`h-5 w-5 ${textSecondary}`} />
-              </div>
-
-              {/* 关联设备数量 */}
-              {agent.devices.length > 0 && (
-                <div className="mt-3 flex items-center space-x-2">
-                  <Users className="h-4 w-4 text-primary-500" />
-                  <span className={`text-xs ${textSecondary}`}>
-                    {agent.devices.length} 个设备使用此模板
-                  </span>
-                </div>
-              )}
+      {agents.length === 0 ? (
+        <EmptyState
+          title={t('agents.empty')}
+          action={
+            <button className="btn-primary" onClick={() => setOpen(true)}>
+              <Plus size={15} /> {t('agents.new')}
             </button>
+          }
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-10">
+          {agents.map((agent) => (
+            <Card key={agent.id} className="p-5 fade-in">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent-soft text-accent flex items-center justify-center shrink-0">
+                    <Bot size={20} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold truncate">{agent.name}</h3>
+                    <p className="text-[12px] text-ink-muted truncate">{agent.description || '—'}</p>
+                  </div>
+                </div>
+                <AgentStateBadge state={agent.state} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                <span className="chip">
+                  <Cpu size={11} /> {providerLabel(agent.provider)}
+                </span>
+                <span className="chip">{agent.model || t('common.default')}</span>
+                <span className="chip">
+                  {t('common.effort')} · {t(`effort.${agent.effort}` as never)}
+                </span>
+                <span className="chip">
+                  {agent.location === 'local' ? <HardDrive size={11} /> : <Server size={11} />}
+                  {agent.location === 'local' ? t('common.local') : agent.runner?.name ?? t('common.remote')}
+                </span>
+              </div>
+              {agent.role && <p className="mt-3 text-[12px] text-ink-soft line-clamp-2 leading-snug">{agent.role}</p>}
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-[11px] text-ink-muted">{agent.busy > 0 ? t('agents.busyCount', { n: agent.busy }) : agent.workDir ? <span className="mono">{agent.workDir}</span> : ''}</span>
+                <div className="flex gap-1">
+                  <button
+                    className="btn-ghost btn-sm !px-2"
+                    onClick={() => {
+                      setEditing(agent)
+                      setOpen(true)
+                    }}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button className="btn-ghost btn-sm !px-2 hover:!text-status-failed" onClick={() => remove(agent)}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </Card>
           ))}
         </div>
+      )}
 
-        {/* Agent 详情 */}
-        {selectedAgent && (
-          <div className={`lg:col-span-2 rounded-xl border backdrop-blur-sm ${cardBg} overflow-hidden`}>
-            {/* 头部 */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-start space-x-4">
-                <div className="text-5xl">{selectedAgent.icon}</div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3">
-                    <h2 className={`text-2xl font-bold ${textPrimary}`}>{selectedAgent.name}</h2>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${theme === 'kanban' ? 'bg-primary-500/20 text-primary-400' : 'bg-primary-100 text-primary-700'}`}>
-                      {selectedAgent.code}
-                    </span>
-                  </div>
-                  <p className={`text-lg ${textSecondary}`}>{selectedAgent.title}</p>
-                  {selectedAgent.experience && (
-                    <p className={`text-sm mt-1 ${textSecondary}`}>
-                      <Briefcase className="inline h-4 w-4 mr-1" />
-                      {selectedAgent.experience}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* 内容区域 */}
-            <div className="p-6 space-y-6">
-              {/* 角色描述 */}
-              <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 ${textSecondary}`}>
-                  角色定位
-                </h3>
-                <p className={textPrimary}>{selectedAgent.role}</p>
-              </div>
-
-              {/* 沟通风格 */}
-              {selectedAgent.communication && (
-                <div>
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 flex items-center ${textSecondary}`}>
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                    沟通风格
-                  </h3>
-                  <p className={`italic ${textSecondary}`}>"{selectedAgent.communication}"</p>
-                </div>
-              )}
-
-              {/* 专长领域 */}
-              <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 flex items-center ${textSecondary}`}>
-                  <Zap className="h-4 w-4 mr-1" />
-                  专长领域
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAgent.expertise.map((skill, index) => (
-                    <span
-                      key={index}
-                      className={`px-3 py-1 rounded-full text-sm ${theme === 'kanban' ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* 核心原则 */}
-              <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 flex items-center ${textSecondary}`}>
-                  <Target className="h-4 w-4 mr-1" />
-                  核心原则
-                </h3>
-                <ul className="space-y-2">
-                  {selectedAgent.principles.map((principle, index) => (
-                    <li key={index} className={`flex items-start ${textPrimary}`}>
-                      <span className="text-primary-500 mr-2">•</span>
-                      {principle}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* 可执行工作流 */}
-              <div>
-                <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 flex items-center ${textSecondary}`}>
-                  <Link2 className="h-4 w-4 mr-1" />
-                  可执行工作流
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {getAgentWorkflows(selectedAgent.code).map((workflow) => (
-                    <div
-                      key={workflow.id}
-                      className={`p-3 rounded-lg border ${theme === 'kanban' ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'}`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className={`w-2 h-2 rounded-full ${getPhaseColor(workflow.phase)}`}></span>
-                        <span className={`font-medium ${textPrimary}`}>{workflow.name}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${theme === 'kanban' ? 'bg-gray-600' : 'bg-gray-200'} ${textSecondary}`}>
-                          {getPhaseLabel(workflow.phase)}
-                        </span>
-                      </div>
-                      <p className={`text-sm mt-1 ${textSecondary}`}>{workflow.description}</p>
-                      <code className={`text-xs mt-2 inline-block px-2 py-0.5 rounded ${theme === 'kanban' ? 'bg-gray-800' : 'bg-gray-100'} text-primary-500`}>
-                        /{workflow.code}
-                      </code>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 关联设备 */}
-              {selectedAgent.devices.length > 0 && (
-                <div>
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider mb-2 flex items-center ${textSecondary}`}>
-                    <Users className="h-4 w-4 mr-1" />
-                    关联设备 ({selectedAgent.devices.length})
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedAgent.devices.map((device) => (
-                      <div
-                        key={device.id}
-                        className={`flex items-center space-x-2 px-3 py-1.5 rounded-full ${theme === 'kanban' ? 'bg-gray-700' : 'bg-gray-100'}`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${getStatusColor(device.status)}`}></span>
-                        <span className={`text-sm ${textPrimary}`}>{device.name}</span>
-                      </div>
-                    ))}
+      <Section title={t('agents.runners')} description={t('agents.runners.desc')}>
+        {runners.length === 0 ? (
+          <Card className="p-6 text-[13px] text-ink-muted">{t('agents.runners.empty')}</Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {runners.map((r) => (
+              <Card key={r.id} className="p-4 flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.status === 'online' ? 'bg-status-success' : 'bg-status-pending'}`} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">{r.name}</div>
+                  <div className="text-[11px] text-ink-muted truncate">
+                    {r.hostname} · {r.os} · {r.capabilities.filter((c) => c !== 'custom').map(providerLabel).join(', ') || '—'}
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="text-[11px] text-ink-muted text-right shrink-0">
+                  <div>{t('agents.runners.agentsCount', { n: r.agents ?? 0 })}</div>
+                  <div>{relativeTime(r.lastSeen, locale)}</div>
+                </div>
+                {r.status === 'offline' && (
+                  <button className="btn-ghost btn-sm !px-2 hover:!text-status-failed" onClick={() => api.deleteRunner(r.id).then(load).catch((e) => setError(e.message))}>
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </Card>
+            ))}
           </div>
         )}
-      </div>
+      </Section>
+
+      <AgentForm open={open} agent={editing} runners={runners} onClose={() => setOpen(false)} onSubmit={submit} />
     </div>
   )
 }

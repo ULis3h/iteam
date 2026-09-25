@@ -1,149 +1,107 @@
 <p align="center">
-  <img src="docs/images/logo-banner.png" alt="iTeam Logo" width="600">
+  <img src="docs/images/logo-banner.png" alt="iTeam" width="420">
 </p>
 
 <p align="center">
-  <strong>One Person, One Team · Empower solo developers with team-level capabilities</strong>
+  <strong>Orchestrate local and remote coding agents into automated pipelines.</strong><br>
+  Claude Code · Codex CLI · Gemini CLI · any command-line agent
 </p>
 
 <p align="center">
-  <a href="https://github.com/ULis3h/iteam/releases"><img src="https://img.shields.io/github/v/release/ULis3h/iteam?include_prereleases&style=flat-square&color=8B5CF6" alt="Release"></a>
-  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
-  <a href="https://deepwiki.com/ULis3h/iteam"><img src="https://img.shields.io/badge/Ask%20DeepWiki-8B5CF6?style=flat-square" alt="Ask DeepWiki"></a>
-</p>
-
-<p align="center">
-  <a href="#-quick-start">Quick Start</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-agent-client">Agent Client</a> •
-  <a href="#-tech-stack">Tech Stack</a> •
-  <a href="#-documentation">Docs</a> •
-  <a href="./README_CN.md">中文文档</a>
+  <a href="./README_CN.md">中文文档</a> ·
+  <a href="./docs/quickstart.md">Quick start</a> ·
+  <a href="./docs/concepts.md">Concepts</a> ·
+  <a href="./docs/workflow-format.md">Workflow format</a> ·
+  <a href="./docs/runner.md">Remote runners</a> ·
+  <a href="./docs/api.md">API</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="docs/images/dashboard-preview.png" alt="Dashboard Preview" width="90%">
-</p>
+## What it does
 
-## 🎯 Core Concept
+iTeam turns the agent CLIs you already have into a team. You define **agents** (a role + a CLI runtime with its own model and reasoning effort, running locally or on a remote machine), compose them into a **workflow** (steps with dependencies), and **run** it. Independent steps execute in parallel, each step can use the output of the steps before it, and you watch everything happen in one place: the pipeline graph, the roadmap, and the live logs.
 
-**iTeam** enables solo developers to coordinate multiple AI Agents and development devices like managing a full team.
+| | |
+|---|---|
+| **Agents** | Claude Code, Codex CLI, Gemini CLI, or a custom command. Per-agent model, effort (`low / medium / high / max`), role instructions, working directory, timeout. |
+| **Local or remote** | Local agents run on the server. Remote agents run on any machine that starts the lightweight runner. |
+| **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error. |
+| **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs, rendered prompt and output, cancel, retry failed steps, run again. |
+| **Import / export** | Workflows are plain YAML or JSON files. Import from the UI (agents are created from the file), export any workflow. |
+| **Quick task** | One prompt on one agent, no workflow needed. |
 
-- 🛡️ **BMAD Integration** - Standardized Agent Roles and Workflows
-- 🖥️ **Multi-device Collaboration** - Manage multiple devices as virtual team members
-- 🤖 **AI Agent Integration** - Deep integration with Claude Code, Gemini CLI, and more
-- 📊 **Real-time Topology** - Visualize connections and status of all devices and agents
-- 📝 **Knowledge Base** - Centralized management for docs, tech notes, and bug fixes
+## Quick start
 
----
-
-## ⚡ Quick Start
+Requirements: Node.js 20+, and at least one agent CLI installed and logged in (`claude`, `codex`, or `gemini`).
 
 ```bash
-# Clone the repository
 git clone https://github.com/ULis3h/iteam.git
 cd iteam
-
-# Start development environment
-./start-dev.sh
+npm install
+npm run dev
 ```
 
-Visit http://localhost:5173 to get started!
+Open <http://localhost:5173>.
 
-### Download Agent Client
+1. **Agents → New agent** — name it, pick the CLI, model and effort.
+2. **Workflows → Import** — paste [`examples/feature-development.yaml`](./examples/feature-development.yaml) (or build one in the editor).
+3. **Run** — fill in the inputs and watch the pipeline.
 
-<p>
-  <a href="https://github.com/ULis3h/iteam/releases/latest">
-    <img src="https://img.shields.io/badge/Download-macOS%20ARM64-8B5CF6?style=for-the-badge&logo=apple&logoColor=white" alt="Download macOS">
-  </a>
-</p>
+Single-port production mode: `npm run build && npm start` serves the UI and API on port 3000.
 
----
+## A workflow file
 
-## ✨ Features
+```yaml
+name: Bug fix
+inputs:
+  - key: repo
+    required: true
+  - key: bug
+    required: true
+agents:
+  - name: Investigator
+    provider: claude-code
+    model: sonnet
+    effort: high
+  - name: Fixer
+    provider: codex
+    model: gpt-5-codex
+    effort: medium
+steps:
+  - id: reproduce
+    name: Reproduce
+    agent: Investigator
+    prompt: "Repo {{inputs.repo}}. Bug: {{inputs.bug}}. Find the root cause and add a failing test."
+  - id: fix
+    name: Fix
+    agent: Fixer
+    dependsOn: [reproduce]
+    retries: 1
+    prompt: "Repo {{inputs.repo}}. Fix the issue described here and make the test pass:\n{{steps.reproduce.output}}"
+```
 
-### 📡 Device Topology
-Click to expand and view device details for each department, with real-time connection monitoring.
+More in [`examples/`](./examples). Full reference: [docs/workflow-format.md](./docs/workflow-format.md).
 
-<img src="docs/images/topology-preview.png" alt="Topology" width="80%">
-
-### 🤖 AI Agent Client
-Standalone desktop app that auto-receives tasks and executes via Claude Code.
-
-### 📋 Project Management
-Kanban-style task management with multi-project support.
-
-### 📝 Document Center
-Markdown editor with categorized documentation management.
-
----
-
-## 🤖 Agent Client
-
-Agent Client is iTeam's desktop application that turns your dev machine into a smart agent:
+## Remote machines
 
 ```bash
-# Install dependencies
-cd agent-client && npm install
-
-# Start the agent
-./start-agent.sh
+cd runner && npm install
+node bin/iteam-runner.js --server http://SERVER:3000 --token <ITEAM_TOKEN> --name my-mac
 ```
 
-**Key Features:**
-- ✅ Auto-connect to iTeam server
-- ✅ Receive and execute dispatched tasks
-- ✅ Invoke Claude Code for automated development
-- ✅ Real-time task status reporting
+The machine appears under **Agents → Runners**; create an agent with location *remote* and pick it. See [docs/runner.md](./docs/runner.md).
 
-See [Agent Client Documentation](./agent-client/README.md) for details.
+## Project layout
 
----
+```
+server/   Express + Prisma (SQLite) + Socket.IO — API, scheduler, executors
+client/   React + Vite + Tailwind — the web UI
+runner/   Node CLI — executes steps on remote machines
+docs/     Documentation
+examples/ Importable workflow files
+```
 
-## 🛠 Tech Stack
+## License
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React 18, TypeScript, Tailwind CSS, Vite |
-| **Backend** | Node.js, Express, Prisma ORM, Socket.IO |
-| **Database** | SQLite (Dev) / PostgreSQL (Prod) |
-| **Desktop** | Electron |
-| **AI Integration** | Claude Code, Gemini CLI support |
-
----
-
-## 📖 Documentation
-
-- 📘 [System Architecture](./ARCHITECTURE.md) - Complete architecture design
-- 🧠 [BMAD Architecture](./docs/features/BMAD-ARCHITECTURE.md) - **New!** AI-driven development framework guide
-- 📗 [Quick Start Guide](./QUICKSTART.md) - Get started in 5 minutes
-- 📙 [Agent Client](./agent-client/README.md) - Desktop client usage
-- 📕 [API Reference](./docs/api/README.md) - REST API documentation
-- 🇨🇳 [中文文档](./README_CN.md) - Chinese documentation
-
----
-
-## 🗺 Roadmap
-
-- [x] Device management with real-time status monitoring
-- [x] Topology visualization (click to expand/collapse)
-- [x] Agent Client desktop application
-- [x] Document editor
-- [ ] Workflow automation
-- [ ] Multi-agent collaborative tasks
-- [ ] Code contribution analytics
-
----
-
-## 📝 License
-
-MIT License © 2024 [ULis3h](https://github.com/ULis3h)
-
----
-
-<p align="center">
-  <strong>iTeam</strong> - Give one person the power of an entire team 💪
-</p>
+MIT © [ULis3h](https://github.com/ULis3h)

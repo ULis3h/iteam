@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,322 +7,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 用户模型
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  username  String   @unique
-  password  String   // bcrypt hashed
-  avatar    String?  // 头像URL
-  role      String   @default("user") // user, admin
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// A machine that executes agents. The server itself is the implicit "local" runner;
+// remote machines connect with the runner CLI and appear here.
+model Runner {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  hostname     String   @default("")
+  os           String   @default("")
+  arch         String   @default("")
+  version      String   @default("")
+  status       String   @default("offline") // online | offline
+  capabilities String   @default("[]")      // JSON string[]: providers available on that machine
+  lastSeen     DateTime @default(now())
+  createdAt    DateTime @default(now())
 
-  @@map("users")
+  agents Agent[]
+
+  @@map("runners")
 }
 
-// Agent模板 - BMAD风格的Agent定义
-model AgentTemplate {
-  id            String   @id @default(uuid())
-  code          String   @unique  // pm, architect, dev, qa, ux, devops, sm
-  name          String            // "John", "Winston", "Amelia"
-  title         String            // "Product Manager", "System Architect"
-  icon          String            // emoji: 📋, 🏗️, 💻
+// An agent = a role + a CLI runtime (provider/model/effort) + where it runs (local or a runner).
+model Agent {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String   @default("")
+  role        String   @default("")            // persona / instructions prepended to every prompt
+  location    String   @default("local")       // local | remote
+  runnerId    String?
+  provider    String   @default("claude-code") // claude-code | codex | gemini | custom
+  model       String   @default("")
+  effort      String   @default("medium")      // low | medium | high | max
+  workDir     String   @default("")
+  command     String   @default("")            // custom provider: command template
+  extraArgs   String   @default("[]")          // JSON string[]
+  env         String   @default("{}")          // JSON Record<string,string>
+  autoApprove Boolean  @default(true)
+  timeoutSec  Int      @default(1800)
+  color       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // Persona 配置
-  role          String            // 角色描述
-  experience    String?           // 经验描述
-  expertise     String            // JSON: 专长领域数组
-  communication String?           // 沟通风格
+  runner   Runner?   @relation(fields: [runnerId], references: [id], onDelete: SetNull)
+  runSteps RunStep[]
 
-  // 行为配置
-  principles    String            // JSON: 核心原则数组
-  workflows     String            // JSON: 可执行工作流代码数组
-
-  // 系统字段
-  isBuiltIn     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  devices       Device[]
-
-  @@map("agent_templates")
+  @@map("agents")
 }
 
-// 设备模型
-model Device {
-  id              String   @id @default(uuid())
-  name            String   @unique
-  type            String   // vscode, windsurf, antigravity, claude-code, other
-  role            String?  // 团队角色: frontend, backend, fullstack, devops, qa, architect, pm, designer
-  skills          String?  // JSON数组: 分配的技能列表
-  documentIds     String?  // JSON数组: 关联的文档ID列表
-  status          String   @default("offline") // online, offline, idle, working
-  os              String
-  ip              String
-  currentProject  String?
-  currentModule   String?
-  metadata        String?  // JSON string for additional info
-  lastSeen        DateTime @default(now())
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // BMAD 扩展字段
-  agentTemplateId String?          // 关联的 Agent 模板
-  agentConfig     String?          // JSON: 自定义配置覆盖
-  skillLevel      String   @default("intermediate")  // beginner/intermediate/expert
-
-  // Relations
-  contributions      Contribution[]
-  tasks              Task[]
-  agentTemplate      AgentTemplate?      @relation(fields: [agentTemplateId], references: [id])
-  workflowExecutions WorkflowExecution[]
-  teamMembers        TeamMember[]
-  taskSessions       TaskSession[]
-  memories           Memory[]
-
-  @@map("devices")
-}
-
-model Project {
+// A reusable pipeline definition: inputs + steps (DAG) assigned to agents.
+model Workflow {
   id          String   @id @default(uuid())
   name        String
-  description String
-  repository  String
-  status      String   @default("active") // active, paused, completed
-  startDate   DateTime @default(now())
-  endDate     DateTime?
+  description String   @default("")
+  inputs      String   @default("[]") // JSON WorkflowInput[]
+  steps       String   @default("[]") // JSON WorkflowStep[]
+  source      String   @default("ui") // ui | import
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // 复杂度评估 (BMAD Scale-Adaptive)
-  complexity  String?  // small/medium/large/enterprise
-
-  // Relations
-  contributions      Contribution[]
-  tasks              Task[]
-  workflowExecutions WorkflowExecution[]
-
-  @@map("projects")
-}
-
-model Contribution {
-  id           String   @id @default(uuid())
-  deviceId     String
-  projectId    String
-  commits      Int      @default(0)
-  linesAdded   Int      @default(0)
-  linesDeleted Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@unique([deviceId, projectId])
-  @@map("contributions")
-}
-
-model Task {
-  id          String   @id @default(uuid())
-  deviceId    String
-  projectId   String
-  module      String
-  description String
-  status      String   @default("active") // active, completed, paused
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  device  Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@map("tasks")
-}
-
-model Document {
-  id        String   @id @default(uuid())
-  title     String
-  content   String
-  category  String   // standard, tech, bug, other
-  tags      String   // JSON array string
-  author    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("documents")
-}
-
-// ==================== BMAD 工作流系统 ====================
-
-// 工作流定义
-model Workflow {
-  id            String   @id @default(uuid())
-  code          String   @unique  // create-prd, dev-story, code-review, etc.
-  name          String            // "Create PRD", "Dev Story"
-  description   String
-  phase         Int               // 1-4 (分析/规划/方案/实施)
-
-  // 工作流配置
-  agentCode     String            // 执行此工作流的 Agent 代码
-  steps         String            // JSON: 步骤定义数组
-  inputs        String?           // JSON: 所需输入定义
-  outputs       String?           // JSON: 输出产物定义
-
-  // 依赖关系
-  prerequisites String?           // JSON: 前置工作流代码数组
-
-  // 分类
-  category      String   @default("general")  // quick-flow, full-flow, qa, etc.
-
-  // 系统字段
-  isBuiltIn     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  executions    WorkflowExecution[]
+  runs Run[]
 
   @@map("workflows")
 }
 
-// 工作流执行实例
-model WorkflowExecution {
-  id          String   @id @default(uuid())
-  workflowId  String
-  projectId   String
-  deviceId    String            // 执行的 Agent/Device
+// One execution of a workflow (or a quick single-step task).
+model Run {
+  id         String    @id @default(uuid())
+  workflowId String?
+  name       String
+  status     String    @default("queued") // queued | running | succeeded | failed | cancelled
+  inputs     String    @default("{}")     // JSON Record<string,string>
+  snapshot   String    @default("{}")     // JSON: workflow definition frozen at run time
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
 
-  status      String   @default("pending")  // pending/running/paused/completed/failed
-  progress    Int      @default(0)          // 0-100
-  currentStep Int      @default(0)
+  workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  steps    RunStep[]
 
-  // 执行数据
-  inputs      String?           // JSON: 实际输入
-  outputs     String?           // JSON: 实际输出
-  logs        String?           // JSON: 执行日志数组
-
-  // 时间追踪
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  workflow    Workflow @relation(fields: [workflowId], references: [id])
-  project     Project  @relation(fields: [projectId], references: [id])
-  device      Device   @relation(fields: [deviceId], references: [id])
-
-  @@map("workflow_executions")
+  @@index([status])
+  @@index([createdAt])
+  @@map("runs")
 }
 
-// ==================== BMAD 团队系统 ====================
+model RunStep {
+  id              String    @id @default(uuid())
+  runId           String
+  key             String    // step id inside the workflow
+  name            String
+  order           Int
+  agentId         String?
+  agentName       String
+  dependsOn       String    @default("[]") // JSON string[]
+  status          String    @default("pending") // pending | running | succeeded | failed | skipped | cancelled
+  attempt         Int       @default(0)
+  maxAttempts     Int       @default(1)
+  continueOnError Boolean   @default(false)
+  prompt          String?
+  output          String?
+  error           String?
+  exitCode        Int?
+  provider        String    @default("")
+  model           String    @default("")
+  effort          String    @default("")
+  location        String    @default("local")
+  runnerId        String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
 
-// 团队定义
-model Team {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
+  run   Run    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  logs  RunLog[]
 
-  // 团队配置
-  mode        String   @default("sequential")  // sequential/parallel/collaborative
-
-  // 默认工作流程
-  defaultWorkflows String?      // JSON: 默认工作流代码序列
-
-  // 系统字段
-  isBuiltIn   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  members     TeamMember[]
-
-  @@map("teams")
+  @@unique([runId, key])
+  @@map("run_steps")
 }
 
-// 团队成员
-model TeamMember {
-  id        String   @id @default(uuid())
-  teamId    String
-  deviceId  String
+model RunLog {
+  id     Int      @id @default(autoincrement())
+  stepId String
+  seq    Int
+  ts     DateTime @default(now())
+  stream String   // stdout | stderr | system
+  line   String
 
-  // 成员配置
-  role      String?           // 在团队中的角色
-  priority  Int      @default(0)  // 优先级
+  step RunStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, deviceId])
-  @@map("team_members")
+  @@index([stepId, seq])
+  @@map("run_logs")
 }
-
-// ==================== 任务执行追踪系统 ====================
-
-// 任务执行会话
-model TaskSession {
-  id            String   @id @default(uuid())
-  taskId        String?            // 关联的任务ID（可选）
-  deviceId      String
-  status        String   @default("running")  // running, completed, failed, paused
-  title         String?            // 会话标题
-  startTime     DateTime @default(now())
-  endTime       DateTime?
-  sessionMemory String?            // 结构化会话笔记 (Markdown)
-  memoryVersion Int      @default(0)  // 笔记版本号，用于乐观并发控制
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  device      Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  entries     TraceEntry[]
-
-  @@map("task_sessions")
-}
-
-// 追踪条目
-model TraceEntry {
-  id          String   @id @default(uuid())
-  sessionId   String
-  timestamp   DateTime @default(now())
-  type        String   // task_received, thinking, discussion, step, result, error
-  title       String
-  content     String   // 详细内容（可能很长）
-  metadata    String?  // JSON: 附加元数据
-  duration    Int?     // 执行时长（毫秒）
-  createdAt   DateTime @default(now())
-
-  // Relations
-  session     TaskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@index([sessionId])
-  @@index([type])
-  @@map("trace_entries")
-}
-
-// ==================== Agent 持久记忆层 (mem0) ====================
-
-// 记忆元数据索引（内容由 mem0 云端管理）
-model Memory {
-  id          String   @id              // 使用 mem0 返回的 ID
-  deviceId    String                    // 来源设备
-  summary     String                    // 记忆内容摘要（同步自 mem0）
-  category    String?                   // 分类标签
-  mem0UserId  String                    // mem0 中的 user_id
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-
-  @@index([deviceId])
-  @@index([category])
-  @@map("memories")
-}
-

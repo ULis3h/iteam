@@ -1,0 +1,53 @@
+# Bug 修复：复现 → 修复 → 验证
+# Bug fix: reproduce → fix → verify
+name: Bug 修复流程
+description: 先写出复现步骤和失败测试，再修复，最后独立验证
+
+inputs:
+  - key: repo
+    label: 仓库路径
+    required: true
+  - key: bug
+    label: Bug 描述 / Issue 链接
+    required: true
+
+agents:
+  - name: 复现者
+    role: 你负责定位问题。先阅读相关代码，写一个能稳定复现问题的失败测试，不要修复。
+    provider: claude-code
+    model: sonnet
+    effort: high
+  - name: 修复者
+    role: 你负责修复问题。改动最小化，保证新旧测试都通过。
+    provider: claude-code
+    model: sonnet
+    effort: medium
+  - name: 验证者
+    role: 你负责独立验证。运行测试、检查边界情况，给出明确结论。
+    provider: claude-code
+    model: haiku
+    effort: low
+
+steps:
+  - id: reproduce
+    name: 复现问题
+    agent: 复现者
+    prompt: |
+      仓库 {{inputs.repo}}。问题：{{inputs.bug}}
+      定位根因并添加一个失败的测试用例来复现它。输出：根因分析 + 测试文件路径。
+  - id: fix
+    name: 修复
+    agent: 修复者
+    dependsOn: [reproduce]
+    retries: 1
+    prompt: |
+      仓库 {{inputs.repo}}。根据以下分析修复问题，并让复现测试通过：
+      {{steps.reproduce.output}}
+  - id: verify
+    name: 验证
+    agent: 验证者
+    dependsOn: [fix]
+    prompt: |
+      仓库 {{inputs.repo}}。运行全部测试，检查以下修复是否完整、有无回归：
+      {{steps.fix.output}}
+    expectedOutput: 验证结论（通过 / 不通过）与理由

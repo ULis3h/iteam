@@ -1,226 +1,92 @@
 import { Router } from 'express'
-import { PrismaClient } from '@prisma/client'
+import type { AppContext } from '../context.js'
+import { availableProviderIds, detectCapabilities } from '../engine/capabilities.js'
+import { parseJson } from '../db.js'
+import { agentBodySchema, formatZodError } from '../workflow/schema.js'
+import { asyncRoute, HttpError, serializeAgent } from './helpers.js'
 
-const router = Router()
-const prisma = new PrismaClient()
+export function agentRoutes(ctx: AppContext) {
+  const router = Router()
 
-// Get all agent templates
-router.get('/', async (req, res) => {
-  try {
-    const templates = await prisma.agentTemplate.findMany({
-      orderBy: { code: 'asc' },
-      include: {
-        devices: {
-          select: {
-            id: true,
-            name: true,
-            status: true
-          }
-        }
-      }
+  const withState = async (agents: Parameters<typeof serializeAgent>[0][]) => {
+    const caps = availableProviderIds(await detectCapabilities())
+    return agents.map((a) => {
+      const busy = ctx.runs.runningCount(a.id)
+      const online = a.location === 'local' ? true : ctx.registry.isOnline(a.runnerId)
+      const cliAvailable = a.location === 'local'
+        ? caps.includes(a.provider)
+        : parseJson<string[]>(a.runner?.capabilities ?? '[]', []).includes(a.provider) || a.provider === 'custom'
+      const state = !online ? 'offline' : busy ? 'busy' : cliAvailable ? 'ready' : 'missing-cli'
+      return { ...serializeAgent(a), state, busy }
     })
-
-    // Parse JSON fields
-    const parsed = templates.map(t => ({
-      ...t,
-      expertise: JSON.parse(t.expertise),
-      principles: JSON.parse(t.principles),
-      workflows: JSON.parse(t.workflows)
-    }))
-
-    res.json(parsed)
-  } catch (error) {
-    console.error('Failed to fetch agent templates:', error)
-    res.status(500).json({ error: 'Failed to fetch agent templates' })
   }
-})
 
-// Get agent template by code
-router.get('/:code', async (req, res) => {
-  try {
-    const template = await prisma.agentTemplate.findUnique({
-      where: { code: req.params.code },
-      include: {
-        devices: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            status: true,
-            skillLevel: true
-          }
-        }
-      }
-    })
+  router.get(
+    '/',
+    asyncRoute(async (_req, res) => {
+      const agents = await ctx.prisma.agent.findMany({ orderBy: { createdAt: 'asc' }, include: { runner: true } })
+      res.json(await withState(agents))
+    }),
+  )
 
-    if (!template) {
-      return res.status(404).json({ error: 'Agent template not found' })
+  router.get(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      const agent = await ctx.prisma.agent.findUnique({ where: { id: req.params.id }, include: { runner: true } })
+      if (!agent) throw new HttpError(404, 'agent not found')
+      res.json((await withState([agent]))[0])
+    }),
+  )
+
+  const validate = (body: unknown) => {
+    const parsed = agentBodySchema.safeParse(body)
+    if (!parsed.success) throw new HttpError(400, formatZodError(parsed.error))
+    const data = parsed.data
+    if (data.provider === 'custom' && !data.command.trim()) throw new HttpError(400, 'custom provider requires a command template')
+    if (data.location === 'remote' && !data.runnerId) throw new HttpError(400, 'remote agents must be bound to a runner')
+    return {
+      ...data,
+      runnerId: data.location === 'remote' ? data.runnerId : null,
+      extraArgs: JSON.stringify(data.extraArgs),
+      env: JSON.stringify(data.env),
     }
-
-    // Parse JSON fields
-    const parsed = {
-      ...template,
-      expertise: JSON.parse(template.expertise),
-      principles: JSON.parse(template.principles),
-      workflows: JSON.parse(template.workflows)
-    }
-
-    res.json(parsed)
-  } catch (error) {
-    console.error('Failed to fetch agent template:', error)
-    res.status(500).json({ error: 'Failed to fetch agent template' })
   }
-})
 
-// Create custom agent template
-router.post('/', async (req, res) => {
-  try {
-    const template = await prisma.agentTemplate.create({
-      data: {
-        code: req.body.code,
-        name: req.body.name,
-        title: req.body.title,
-        icon: req.body.icon,
-        role: req.body.role,
-        experience: req.body.experience,
-        expertise: JSON.stringify(req.body.expertise || []),
-        communication: req.body.communication,
-        principles: JSON.stringify(req.body.principles || []),
-        workflows: JSON.stringify(req.body.workflows || []),
-        isBuiltIn: false
-      }
-    })
+  router.post(
+    '/',
+    asyncRoute(async (req, res) => {
+      const data = validate(req.body)
+      const exists = await ctx.prisma.agent.findUnique({ where: { name: data.name } })
+      if (exists) throw new HttpError(409, `an agent named "${data.name}" already exists`)
+      const agent = await ctx.prisma.agent.create({ data, include: { runner: true } })
+      const [payload] = await withState([agent])
+      ctx.broadcast.all('agent:changed', payload)
+      res.status(201).json(payload)
+    }),
+  )
 
-    res.status(201).json({
-      ...template,
-      expertise: JSON.parse(template.expertise),
-      principles: JSON.parse(template.principles),
-      workflows: JSON.parse(template.workflows)
-    })
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Agent code already exists' })
-    }
-    console.error('Failed to create agent template:', error)
-    res.status(500).json({ error: 'Failed to create agent template' })
-  }
-})
+  router.put(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      const data = validate(req.body)
+      const clash = await ctx.prisma.agent.findFirst({ where: { name: data.name, NOT: { id: req.params.id } } })
+      if (clash) throw new HttpError(409, `an agent named "${data.name}" already exists`)
+      const agent = await ctx.prisma.agent.update({ where: { id: req.params.id }, data, include: { runner: true } })
+      const [payload] = await withState([agent])
+      ctx.broadcast.all('agent:changed', payload)
+      res.json(payload)
+    }),
+  )
 
-// Update agent template (only custom ones)
-router.put('/:code', async (req, res) => {
-  try {
-    const existing = await prisma.agentTemplate.findUnique({
-      where: { code: req.params.code }
-    })
+  router.delete(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      if (ctx.runs.runningCount(req.params.id) > 0) throw new HttpError(409, 'agent is currently running a step')
+      await ctx.prisma.agent.delete({ where: { id: req.params.id } })
+      ctx.broadcast.all('agent:deleted', { id: req.params.id })
+      res.status(204).end()
+    }),
+  )
 
-    if (!existing) {
-      return res.status(404).json({ error: 'Agent template not found' })
-    }
-
-    if (existing.isBuiltIn) {
-      return res.status(403).json({ error: 'Cannot modify built-in agent templates' })
-    }
-
-    const template = await prisma.agentTemplate.update({
-      where: { code: req.params.code },
-      data: {
-        name: req.body.name,
-        title: req.body.title,
-        icon: req.body.icon,
-        role: req.body.role,
-        experience: req.body.experience,
-        expertise: req.body.expertise ? JSON.stringify(req.body.expertise) : undefined,
-        communication: req.body.communication,
-        principles: req.body.principles ? JSON.stringify(req.body.principles) : undefined,
-        workflows: req.body.workflows ? JSON.stringify(req.body.workflows) : undefined
-      }
-    })
-
-    res.json({
-      ...template,
-      expertise: JSON.parse(template.expertise),
-      principles: JSON.parse(template.principles),
-      workflows: JSON.parse(template.workflows)
-    })
-  } catch (error) {
-    console.error('Failed to update agent template:', error)
-    res.status(500).json({ error: 'Failed to update agent template' })
-  }
-})
-
-// Delete custom agent template
-router.delete('/:code', async (req, res) => {
-  try {
-    const existing = await prisma.agentTemplate.findUnique({
-      where: { code: req.params.code }
-    })
-
-    if (!existing) {
-      return res.status(404).json({ error: 'Agent template not found' })
-    }
-
-    if (existing.isBuiltIn) {
-      return res.status(403).json({ error: 'Cannot delete built-in agent templates' })
-    }
-
-    await prisma.agentTemplate.delete({
-      where: { code: req.params.code }
-    })
-
-    res.status(204).send()
-  } catch (error) {
-    console.error('Failed to delete agent template:', error)
-    res.status(500).json({ error: 'Failed to delete agent template' })
-  }
-})
-
-// Assign agent template to device
-router.post('/:code/assign/:deviceId', async (req, res) => {
-  try {
-    const template = await prisma.agentTemplate.findUnique({
-      where: { code: req.params.code }
-    })
-
-    if (!template) {
-      return res.status(404).json({ error: 'Agent template not found' })
-    }
-
-    const device = await prisma.device.update({
-      where: { id: req.params.deviceId },
-      data: {
-        agentTemplateId: template.id,
-        role: template.code,  // Also update role field for backward compatibility
-        agentConfig: req.body.config ? JSON.stringify(req.body.config) : null,
-        skillLevel: req.body.skillLevel || 'intermediate'
-      },
-      include: {
-        agentTemplate: true
-      }
-    })
-
-    res.json(device)
-  } catch (error) {
-    console.error('Failed to assign agent template:', error)
-    res.status(500).json({ error: 'Failed to assign agent template' })
-  }
-})
-
-// Unassign agent template from device
-router.delete('/:code/assign/:deviceId', async (req, res) => {
-  try {
-    const device = await prisma.device.update({
-      where: { id: req.params.deviceId },
-      data: {
-        agentTemplateId: null,
-        agentConfig: null
-      }
-    })
-
-    res.json(device)
-  } catch (error) {
-    console.error('Failed to unassign agent template:', error)
-    res.status(500).json({ error: 'Failed to unassign agent template' })
-  }
-})
-
-export default router
+  return router
+}

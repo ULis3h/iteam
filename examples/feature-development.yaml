@@ -1,0 +1,73 @@
+# 新功能开发：设计 → 前后端并行实现 → 测试 → 评审
+# Feature development: design → backend & frontend in parallel → tests → review
+name: 新功能开发流水线
+description: 从需求描述到代码评审的完整自动化流程
+
+inputs:
+  - key: repo
+    label: 仓库路径
+    required: true
+  - key: feature
+    label: 功能描述
+    required: true
+
+agents:
+  - name: 架构师
+    role: 你是资深软件架构师。先阅读仓库结构，再给出简洁、可执行的技术方案，列出需要改动的文件。
+    provider: claude-code
+    model: opus
+    effort: high
+  - name: 开发者
+    role: 你是全栈工程师。严格按照方案实现，改动保持最小，写完后运行相关测试。
+    provider: claude-code
+    model: sonnet
+    effort: medium
+  - name: 评审员
+    role: 你是严格的代码评审员。关注正确性、安全性与可维护性，给出明确的通过/不通过结论。
+    provider: claude-code
+    model: sonnet
+    effort: high
+
+steps:
+  - id: design
+    name: 方案设计
+    agent: 架构师
+    prompt: |
+      仓库位于 {{inputs.repo}}。
+      请为以下功能设计技术方案：{{inputs.feature}}
+    expectedOutput: Markdown 方案，包含改动文件清单与接口定义
+
+  - id: backend
+    name: 后端实现
+    agent: 开发者
+    dependsOn: [design]
+    prompt: |
+      仓库位于 {{inputs.repo}}。根据以下方案实现后端部分，不要改动前端代码：
+      {{steps.design.output}}
+
+  - id: frontend
+    name: 前端实现
+    agent: 开发者
+    dependsOn: [design]
+    prompt: |
+      仓库位于 {{inputs.repo}}。根据以下方案实现前端部分，不要改动后端代码：
+      {{steps.design.output}}
+
+  - id: test
+    name: 补充测试
+    agent: 开发者
+    dependsOn: [backend, frontend]
+    retries: 1
+    prompt: |
+      仓库位于 {{inputs.repo}}。为本次改动补充测试并运行全部测试，修复失败项。
+      后端改动摘要：{{steps.backend.output}}
+      前端改动摘要：{{steps.frontend.output}}
+
+  - id: review
+    name: 代码评审
+    agent: 评审员
+    dependsOn: [test]
+    prompt: |
+      仓库位于 {{inputs.repo}}。评审本次全部改动（git diff），并给出结论。
+      测试结果：{{steps.test.output}}
+    expectedOutput: 评审报告：问题清单 + 通过/不通过

@@ -1,36 +1,32 @@
 {
   "name": "iteam-server",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node scripts/migrate.mjs && tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "mcp:start": "tsx src/mcp/standard-mcp-server.ts",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "start": "node scripts/migrate.mjs && node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.3",
-    "@prisma/client": "^5.7.0",
-    "bcryptjs": "^3.0.3",
+    "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.3",
-    "mem0ai": "^2.4.2",
-    "socket.io": "^4.6.0",
-    "winston": "^3.11.0",
-    "zod": "^4.3.6"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "yaml": "^2.6.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20.10.0",
-    "prisma": "^5.7.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "@types/node": "^22.10.2",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }

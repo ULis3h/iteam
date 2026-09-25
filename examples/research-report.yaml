@@ -1,0 +1,50 @@
+# 非编码任务示例：调研 → 起草 → 润色
+# Non-coding example: research → draft → polish
+name: 技术调研报告
+description: 用不同强度的模型分工完成一份调研报告
+
+inputs:
+  - key: topic
+    label: 调研主题
+    required: true
+  - key: audience
+    label: 目标读者
+    default: 技术负责人
+
+agents:
+  - name: 调研员
+    role: 你是技术调研员，输出客观、有出处的要点，不下结论。
+    provider: claude-code
+    model: sonnet
+    effort: high
+  - name: 撰稿人
+    role: 你是技术写作者，结构清晰，先结论后论据。
+    provider: claude-code
+    model: sonnet
+    effort: medium
+  - name: 编辑
+    role: 你是编辑，只做语言润色与格式统一，不改变内容。
+    provider: claude-code
+    model: haiku
+    effort: low
+
+steps:
+  - id: research
+    name: 资料调研
+    agent: 调研员
+    prompt: 围绕「{{inputs.topic}}」整理关键事实、主流方案与各自优缺点，列出要点。
+  - id: draft
+    name: 起草报告
+    agent: 撰稿人
+    dependsOn: [research]
+    prompt: |
+      面向 {{inputs.audience}}，基于以下要点撰写一份 Markdown 调研报告（含结论与建议）：
+      {{steps.research.output}}
+  - id: polish
+    name: 润色
+    agent: 编辑
+    dependsOn: [draft]
+    prompt: |
+      润色以下报告的语言与格式，保持内容不变，输出最终版本：
+      {{steps.draft.output}}
+    expectedOutput: 最终版 Markdown 报告

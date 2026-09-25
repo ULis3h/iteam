@@ -1,146 +1,107 @@
 <p align="center">
-  <img src="docs/images/logo-banner.png" alt="iTeam Logo" width="600">
+  <img src="docs/images/logo-banner.png" alt="iTeam" width="420">
 </p>
 
 <p align="center">
-  <strong>一人即团队 · 让个人开发者拥有团队协作的超能力</strong>
+  <strong>把本地和远程的编码 Agent 编排成自动化流水线。</strong><br>
+  Claude Code · Codex CLI · Gemini CLI · 任意命令行 Agent
 </p>
 
 <p align="center">
-  <a href="https://github.com/ULis3h/iteam/releases"><img src="https://img.shields.io/github/v/release/ULis3h/iteam?include_prereleases&style=flat-square&color=8B5CF6" alt="Release"></a>
-  <img src="https://img.shields.io/badge/build-passing-brightgreen?style=flat-square" alt="Build">
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License">
-  <a href="https://deepwiki.com/ULis3h/iteam"><img src="https://img.shields.io/badge/Ask%20DeepWiki-8B5CF6?style=flat-square" alt="Ask DeepWiki"></a>
-</p>
-
-<p align="center">
-  <a href="./README.md">English</a> •
-  <a href="#-快速开始">快速开始</a> •
-  <a href="#-功能特性">功能特性</a> •
-  <a href="#-agent-client">Agent Client</a> •
-  <a href="#-技术栈">技术栈</a> •
-  <a href="#-文档">文档</a>
+  <a href="./README.md">English</a> ·
+  <a href="./docs/quickstart.md">快速开始</a> ·
+  <a href="./docs/concepts.md">核心概念</a> ·
+  <a href="./docs/workflow-format.md">工作流文件格式</a> ·
+  <a href="./docs/runner.md">远程 Runner</a> ·
+  <a href="./docs/api.md">API</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="docs/images/dashboard-preview.png" alt="Dashboard Preview" width="90%">
-</p>
+## 它是什么
 
-## 🎯 核心理念
+iTeam 把你已有的 Agent CLI 组成一个团队。你定义 **Agent**（角色 + CLI 运行时：模型、思考强度；运行在本机或远程机器），把它们组合成 **工作流**（带依赖关系的步骤），然后 **运行**。无依赖的步骤并行执行，每个步骤可以引用上游步骤的输出，整个过程在一个页面里看得清清楚楚：流水线图、路线图、实时日志。
 
-**iTeam** 让个人开发者能够像管理一个完整团队一样，协调多个 AI Agent 和开发设备。
+| | |
+|---|---|
+| **Agent** | Claude Code、Codex CLI、Gemini CLI 或自定义命令。每个 Agent 单独设置模型、思考强度（`low / medium / high / max`）、角色指令、工作目录、超时。 |
+| **本地或远程** | 本地 Agent 在服务器上执行；远程 Agent 在任何启动了 runner 的机器上执行。 |
+| **工作流** | 步骤构成 DAG。`{{inputs.x}}`、`{{steps.id.output}}` 在步骤间传递数据。支持按步骤覆盖模型/思考强度、失败重试、超时、失败不阻塞下游。 |
+| **运行记录** | 流水线视图、阶段路线图 + 时间线、按步骤的实时日志、实际提示词与输出、取消、重试失败步骤、重新运行。 |
+| **导入 / 导出** | 工作流就是 YAML / JSON 文件。从界面导入（缺失的 Agent 按文件定义自动创建），任意工作流可导出。 |
+| **快速任务** | 一个 Agent、一句话，直接执行，不用先建工作流。 |
 
-- 🖥️ **多设备协作** - 将多台设备作为虚拟团队成员管理
-- 🤖 **AI Agent 集成** - 与 Claude Code、Gemini CLI 等 AI 工具深度集成  
-- 📊 **实时拓扑图** - 可视化展示所有设备和 Agent 的连接状态
-- 📝 **知识库管理** - 集中管理项目文档、技术笔记、Bug 修复记录
+## 快速开始
 
----
-
-## ⚡ 快速开始
+要求：Node.js 20+，以及至少一个已安装并登录的 Agent CLI（`claude`、`codex` 或 `gemini`）。
 
 ```bash
-# 克隆仓库
 git clone https://github.com/ULis3h/iteam.git
 cd iteam
-
-# 一键启动开发环境
-./start-dev.sh
+npm install
+npm run dev
 ```
 
-访问 http://localhost:5173 开始使用！
+打开 <http://localhost:5173>。
 
-### 下载 Agent Client
+1. **Agent → 新建 Agent**：起个名字，选择 CLI、模型和思考强度。
+2. **工作流 → 导入**：粘贴 [`examples/feature-development.yaml`](./examples/feature-development.yaml)（或在编辑器里手动创建）。
+3. **运行**：填写输入参数，看着流水线跑起来。
 
-<p>
-  <a href="https://github.com/ULis3h/iteam/releases/latest">
-    <img src="https://img.shields.io/badge/下载-macOS%20ARM64-8B5CF6?style=for-the-badge&logo=apple&logoColor=white" alt="Download macOS">
-  </a>
-</p>
+生产单端口模式：`npm run build && npm start`，界面和 API 都在 3000 端口。
 
----
+## 一个工作流文件
 
-## ✨ 功能特性
+```yaml
+name: Bug 修复
+inputs:
+  - key: repo
+    required: true
+  - key: bug
+    required: true
+agents:
+  - name: 复现者
+    provider: claude-code
+    model: sonnet
+    effort: high
+  - name: 修复者
+    provider: codex
+    model: gpt-5-codex
+    effort: medium
+steps:
+  - id: reproduce
+    name: 复现问题
+    agent: 复现者
+    prompt: "仓库 {{inputs.repo}}。问题：{{inputs.bug}}。定位根因并添加一个失败的测试。"
+  - id: fix
+    name: 修复
+    agent: 修复者
+    dependsOn: [reproduce]
+    retries: 1
+    prompt: "仓库 {{inputs.repo}}。根据以下分析修复并让测试通过：\n{{steps.reproduce.output}}"
+```
 
-### 📡 设备拓扑图
-点击展开查看每个部门的设备详情，实时监控连接状态。
+更多示例见 [`examples/`](./examples)，完整说明见 [docs/workflow-format.md](./docs/workflow-format.md)。
 
-<img src="docs/images/topology-preview.png" alt="Topology" width="80%">
-
-### 🤖 AI Agent Client
-独立桌面应用，自动接收任务并调用 Claude Code 执行。
-
-### 📋 项目管理
-看板式任务管理，支持多项目并行。
-
-### 📝 文档中心
-Markdown 编辑器，分类管理技术文档。
-
----
-
-## 🤖 Agent Client
-
-Agent Client 是 iTeam 的桌面客户端，让你的开发机器变成智能 Agent：
+## 接入远程机器
 
 ```bash
-# 安装依赖
-cd agent-client && npm install
-
-# 启动 Agent
-./start-agent.sh
+cd runner && npm install
+node bin/iteam-runner.js --server http://SERVER:3000 --token <ITEAM_TOKEN> --name my-mac
 ```
 
-**主要功能：**
-- ✅ 自动连接 iTeam 服务器
-- ✅ 接收并执行派发的任务
-- ✅ 调用 Claude Code 自动完成开发任务
-- ✅ 实时上报任务状态
+这台机器会出现在 **Agent → Runner** 中；新建 Agent 时选择「远程」并指定它即可。详见 [docs/runner.md](./docs/runner.md)。
 
-详见 [Agent Client 文档](./agent-client/README.md)
+## 目录结构
 
----
+```
+server/   Express + Prisma (SQLite) + Socket.IO —— API、调度器、执行器
+client/   React + Vite + Tailwind —— Web 界面
+runner/   Node CLI —— 在远程机器上执行步骤
+docs/     文档
+examples/ 可导入的工作流示例
+```
 
-## 🛠 技术栈
+## License
 
-| 层级 | 技术 |
-|------|------|
-| **Frontend** | React 18, TypeScript, Tailwind CSS, Vite |
-| **Backend** | Node.js, Express, Prisma ORM, Socket.IO |
-| **Database** | SQLite (开发) / PostgreSQL (生产) |
-| **Desktop** | Electron |
-| **AI Integration** | Claude Code, 支持 Gemini CLI |
-
----
-
-## 📖 文档
-
-- 📘 [系统架构](./ARCHITECTURE.md) - 完整架构设计
-- 📗 [快速上手](./QUICKSTART.md) - 5分钟入门指南
-- 📙 [Agent Client](./agent-client/README.md) - 桌面客户端使用
-- 📕 [API 参考](./docs/api/README.md) - REST API 文档
-
----
-
-## 🗺 路线图
-
-- [x] 设备管理与实时状态监控
-- [x] 拓扑图可视化（点击展开/收起）
-- [x] Agent Client 桌面应用
-- [x] 文档编辑器
-- [ ] 工作流自动化
-- [ ] 多 Agent 协作任务
-- [ ] 代码贡献分析
-
----
-
-## 📝 License
-
-MIT License © 2024 [ULis3h](https://github.com/ULis3h)
-
----
-
-<p align="center">
-  <strong>iTeam</strong> - 让一个人拥有一个团队的力量 💪
-</p>
+MIT © [ULis3h](https://github.com/ULis3h)

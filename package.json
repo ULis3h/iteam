@@ -1,0 +1,25 @@
+{
+  "name": "iteam",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Orchestrate local and remote coding agents (Claude Code, Codex, Gemini CLI, custom) into automated multi-step pipelines.",
+  "license": "MIT",
+  "workspaces": [
+    "server",
+    "client",
+    "runner"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client && npm run build -w server",
+    "start": "npm run start -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "runner": "node runner/bin/iteam-runner.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,326 +1,162 @@
 import { Router } from 'express'
-import { PrismaClient } from '@prisma/client'
+import type { AppContext } from '../context.js'
+import { stages, topologicalOrder } from '../engine/dag.js'
+import { exportWorkflow, importWorkflow, parseWorkflowFile, workflowToDefinition } from '../workflow/import-export.js'
+import { formatZodError, workflowBodySchema } from '../workflow/schema.js'
+import { asyncRoute, HttpError, serializeRun, serializeWorkflow } from './helpers.js'
 
-const router = Router()
-const prisma = new PrismaClient()
+export function workflowRoutes(ctx: AppContext) {
+  const router = Router()
 
-// Helper to parse JSON fields
-const parseWorkflow = (workflow: any) => ({
-  ...workflow,
-  steps: JSON.parse(workflow.steps),
-  inputs: workflow.inputs ? JSON.parse(workflow.inputs) : null,
-  outputs: workflow.outputs ? JSON.parse(workflow.outputs) : null,
-  prerequisites: workflow.prerequisites ? JSON.parse(workflow.prerequisites) : null
-})
-
-// Get all workflows
-router.get('/', async (req, res) => {
-  try {
-    const { phase, category, agentCode } = req.query
-
-    const where: any = {}
-    if (phase) where.phase = parseInt(phase as string)
-    if (category) where.category = category
-    if (agentCode) where.agentCode = agentCode
-
-    const workflows = await prisma.workflow.findMany({
-      where,
-      orderBy: [{ phase: 'asc' }, { code: 'asc' }]
-    })
-
-    res.json(workflows.map(parseWorkflow))
-  } catch (error) {
-    console.error('Failed to fetch workflows:', error)
-    res.status(500).json({ error: 'Failed to fetch workflows' })
+  const validateBody = (body: unknown) => {
+    const parsed = workflowBodySchema.safeParse(body)
+    if (!parsed.success) throw new HttpError(400, formatZodError(parsed.error))
+    try {
+      topologicalOrder(parsed.data.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn })))
+    } catch (err) {
+      throw new HttpError(400, (err as Error).message)
+    }
+    return parsed.data
   }
-})
 
-// Get workflow by code
-router.get('/:code', async (req, res) => {
-  try {
-    const workflow = await prisma.workflow.findUnique({
-      where: { code: req.params.code },
-      include: {
-        executions: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            project: { select: { id: true, name: true } },
-            device: { select: { id: true, name: true } }
-          }
-        }
+  router.get(
+    '/',
+    asyncRoute(async (_req, res) => {
+      const workflows = await ctx.prisma.workflow.findMany({
+        orderBy: { updatedAt: 'desc' },
+        include: { _count: { select: { runs: true } }, runs: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } } },
+      })
+      res.json(workflows.map((w) => ({ ...serializeWorkflow(w), runCount: w._count.runs, lastRun: w.runs[0] ?? null })))
+    }),
+  )
+
+  router.post(
+    '/validate',
+    asyncRoute(async (req, res) => {
+      const data = validateBody(req.body)
+      res.json({ ok: true, stages: stages(data.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn }))) })
+    }),
+  )
+
+  router.post(
+    '/import',
+    asyncRoute(async (req, res) => {
+      const { content, run, inputs, name } = req.body as { content?: string; run?: boolean; inputs?: Record<string, string>; name?: string }
+      if (typeof content !== 'string') throw new HttpError(400, 'content (string) is required')
+      let file
+      try {
+        file = parseWorkflowFile(content)
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
       }
-    })
-
-    if (!workflow) {
-      return res.status(404).json({ error: 'Workflow not found' })
-    }
-
-    res.json(parseWorkflow(workflow))
-  } catch (error) {
-    console.error('Failed to fetch workflow:', error)
-    res.status(500).json({ error: 'Failed to fetch workflow' })
-  }
-})
-
-// Get quick-flow workflows
-router.get('/category/quick-flow', async (req, res) => {
-  try {
-    const workflows = await prisma.workflow.findMany({
-      where: { category: 'quick-flow' },
-      orderBy: { code: 'asc' }
-    })
-
-    res.json(workflows.map(parseWorkflow))
-  } catch (error) {
-    console.error('Failed to fetch quick-flow workflows:', error)
-    res.status(500).json({ error: 'Failed to fetch quick-flow workflows' })
-  }
-})
-
-// Get workflows by phase
-router.get('/phase/:phase', async (req, res) => {
-  try {
-    const phase = parseInt(req.params.phase)
-    if (isNaN(phase) || phase < 1 || phase > 4) {
-      return res.status(400).json({ error: 'Invalid phase (must be 1-4)' })
-    }
-
-    const workflows = await prisma.workflow.findMany({
-      where: { phase },
-      orderBy: { code: 'asc' }
-    })
-
-    res.json(workflows.map(parseWorkflow))
-  } catch (error) {
-    console.error('Failed to fetch workflows by phase:', error)
-    res.status(500).json({ error: 'Failed to fetch workflows' })
-  }
-})
-
-// Create custom workflow
-router.post('/', async (req, res) => {
-  try {
-    const workflow = await prisma.workflow.create({
-      data: {
-        code: req.body.code,
-        name: req.body.name,
-        description: req.body.description,
-        phase: req.body.phase,
-        agentCode: req.body.agentCode,
-        category: req.body.category || 'general',
-        steps: JSON.stringify(req.body.steps || []),
-        inputs: req.body.inputs ? JSON.stringify(req.body.inputs) : null,
-        outputs: req.body.outputs ? JSON.stringify(req.body.outputs) : null,
-        prerequisites: req.body.prerequisites ? JSON.stringify(req.body.prerequisites) : null,
-        isBuiltIn: false
+      const result = await importWorkflow(ctx.prisma, file)
+      ctx.broadcast.all('workflow:changed', serializeWorkflow(result.workflow))
+      let startedRun = null
+      if (run) {
+        const created = await ctx.runs.createRun(workflowToDefinition(result.workflow), { workflowId: result.workflow.id, inputs, name })
+        void ctx.runs.start(created.id)
+        startedRun = serializeRun(created)
       }
-    })
+      res.status(201).json({ workflow: serializeWorkflow(result.workflow), createdAgents: result.createdAgents, run: startedRun })
+    }),
+  )
 
-    res.status(201).json(parseWorkflow(workflow))
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Workflow code already exists' })
-    }
-    console.error('Failed to create workflow:', error)
-    res.status(500).json({ error: 'Failed to create workflow' })
-  }
-})
-
-// Update workflow
-router.put('/:code', async (req, res) => {
-  try {
-    const existing = await prisma.workflow.findUnique({
-      where: { code: req.params.code }
-    })
-
-    if (!existing) {
-      return res.status(404).json({ error: 'Workflow not found' })
-    }
-
-    if (existing.isBuiltIn) {
-      return res.status(403).json({ error: 'Cannot modify built-in workflows' })
-    }
-
-    const workflow = await prisma.workflow.update({
-      where: { code: req.params.code },
-      data: {
-        name: req.body.name,
-        description: req.body.description,
-        phase: req.body.phase,
-        agentCode: req.body.agentCode,
-        category: req.body.category,
-        steps: req.body.steps ? JSON.stringify(req.body.steps) : undefined,
-        inputs: req.body.inputs ? JSON.stringify(req.body.inputs) : undefined,
-        outputs: req.body.outputs ? JSON.stringify(req.body.outputs) : undefined,
-        prerequisites: req.body.prerequisites ? JSON.stringify(req.body.prerequisites) : undefined
+  router.post(
+    '/preview',
+    asyncRoute(async (req, res) => {
+      const { content } = req.body as { content?: string }
+      if (typeof content !== 'string') throw new HttpError(400, 'content (string) is required')
+      try {
+        const file = parseWorkflowFile(content)
+        const names = [...new Set(file.steps.map((s) => s.agent))]
+        const existing = await ctx.prisma.agent.findMany({ where: { name: { in: names } }, select: { name: true } })
+        const have = new Set(existing.map((a) => a.name))
+        const inline = new Set(file.agents.map((a) => a.name))
+        res.json({
+          ok: true,
+          name: file.name,
+          description: file.description,
+          inputs: file.inputs,
+          steps: file.steps.map((s) => ({ id: s.id, name: s.name, agent: s.agent, dependsOn: s.dependsOn })),
+          agents: names.map((n) => ({ name: n, status: have.has(n) ? 'existing' : inline.has(n) ? 'create' : 'create-default' })),
+          stages: stages(file.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn }))),
+        })
+      } catch (err) {
+        res.json({ ok: false, error: (err as Error).message })
       }
-    })
+    }),
+  )
 
-    res.json(parseWorkflow(workflow))
-  } catch (error) {
-    console.error('Failed to update workflow:', error)
-    res.status(500).json({ error: 'Failed to update workflow' })
-  }
-})
+  router.get(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      const workflow = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id } })
+      if (!workflow) throw new HttpError(404, 'workflow not found')
+      res.json(serializeWorkflow(workflow))
+    }),
+  )
 
-// Delete workflow
-router.delete('/:code', async (req, res) => {
-  try {
-    const existing = await prisma.workflow.findUnique({
-      where: { code: req.params.code }
-    })
+  router.get(
+    '/:id/export',
+    asyncRoute(async (req, res) => {
+      const workflow = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id } })
+      if (!workflow) throw new HttpError(404, 'workflow not found')
+      const format = req.query.format === 'json' ? 'json' : 'yaml'
+      const body = await exportWorkflow(ctx.prisma, workflow, format)
+      res.type(format === 'json' ? 'application/json' : 'text/yaml').send(body)
+    }),
+  )
 
-    if (!existing) {
-      return res.status(404).json({ error: 'Workflow not found' })
-    }
+  router.post(
+    '/',
+    asyncRoute(async (req, res) => {
+      const data = validateBody(req.body)
+      const workflow = await ctx.prisma.workflow.create({
+        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps), source: 'ui' },
+      })
+      ctx.broadcast.all('workflow:changed', serializeWorkflow(workflow))
+      res.status(201).json(serializeWorkflow(workflow))
+    }),
+  )
 
-    if (existing.isBuiltIn) {
-      return res.status(403).json({ error: 'Cannot delete built-in workflows' })
-    }
+  router.put(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      const data = validateBody(req.body)
+      const workflow = await ctx.prisma.workflow.update({
+        where: { id: req.params.id },
+        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps) },
+      })
+      ctx.broadcast.all('workflow:changed', serializeWorkflow(workflow))
+      res.json(serializeWorkflow(workflow))
+    }),
+  )
 
-    await prisma.workflow.delete({
-      where: { code: req.params.code }
-    })
+  router.delete(
+    '/:id',
+    asyncRoute(async (req, res) => {
+      await ctx.prisma.workflow.delete({ where: { id: req.params.id } })
+      ctx.broadcast.all('workflow:deleted', { id: req.params.id })
+      res.status(204).end()
+    }),
+  )
 
-    res.status(204).send()
-  } catch (error) {
-    console.error('Failed to delete workflow:', error)
-    res.status(500).json({ error: 'Failed to delete workflow' })
-  }
-})
-
-// ==================== Workflow Executions ====================
-
-// Start workflow execution
-router.post('/:code/execute', async (req, res) => {
-  try {
-    const workflow = await prisma.workflow.findUnique({
-      where: { code: req.params.code }
-    })
-
-    if (!workflow) {
-      return res.status(404).json({ error: 'Workflow not found' })
-    }
-
-    const { projectId, deviceId, inputs } = req.body
-
-    if (!projectId || !deviceId) {
-      return res.status(400).json({ error: 'projectId and deviceId are required' })
-    }
-
-    const execution = await prisma.workflowExecution.create({
-      data: {
-        workflowId: workflow.id,
-        projectId,
-        deviceId,
-        inputs: inputs ? JSON.stringify(inputs) : null,
-        status: 'pending'
-      },
-      include: {
-        workflow: true,
-        project: { select: { id: true, name: true } },
-        device: { select: { id: true, name: true } }
+  router.post(
+    '/:id/run',
+    asyncRoute(async (req, res) => {
+      const workflow = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id } })
+      if (!workflow) throw new HttpError(404, 'workflow not found')
+      const { inputs, name } = req.body as { inputs?: Record<string, string>; name?: string }
+      let run
+      try {
+        run = await ctx.runs.createRun(workflowToDefinition(workflow), { workflowId: workflow.id, inputs, name })
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
       }
-    })
+      void ctx.runs.start(run.id)
+      res.status(201).json(serializeRun(run))
+    }),
+  )
 
-    res.status(201).json(execution)
-  } catch (error) {
-    console.error('Failed to start workflow execution:', error)
-    res.status(500).json({ error: 'Failed to start workflow execution' })
-  }
-})
-
-// Get all executions
-router.get('/executions/all', async (req, res) => {
-  try {
-    const { status, projectId, deviceId, limit = '20' } = req.query
-
-    const where: any = {}
-    if (status) where.status = status
-    if (projectId) where.projectId = projectId
-    if (deviceId) where.deviceId = deviceId
-
-    const executions = await prisma.workflowExecution.findMany({
-      where,
-      take: parseInt(limit as string),
-      orderBy: { createdAt: 'desc' },
-      include: {
-        workflow: { select: { code: true, name: true, phase: true } },
-        project: { select: { id: true, name: true } },
-        device: { select: { id: true, name: true } }
-      }
-    })
-
-    res.json(executions)
-  } catch (error) {
-    console.error('Failed to fetch executions:', error)
-    res.status(500).json({ error: 'Failed to fetch executions' })
-  }
-})
-
-// Get execution by ID
-router.get('/executions/:id', async (req, res) => {
-  try {
-    const execution = await prisma.workflowExecution.findUnique({
-      where: { id: req.params.id },
-      include: {
-        workflow: true,
-        project: true,
-        device: true
-      }
-    })
-
-    if (!execution) {
-      return res.status(404).json({ error: 'Execution not found' })
-    }
-
-    res.json({
-      ...execution,
-      inputs: execution.inputs ? JSON.parse(execution.inputs) : null,
-      outputs: execution.outputs ? JSON.parse(execution.outputs) : null,
-      logs: execution.logs ? JSON.parse(execution.logs) : null
-    })
-  } catch (error) {
-    console.error('Failed to fetch execution:', error)
-    res.status(500).json({ error: 'Failed to fetch execution' })
-  }
-})
-
-// Update execution status (for agent-client to report progress)
-router.patch('/executions/:id', async (req, res) => {
-  try {
-    const { status, progress, currentStep, outputs, logs } = req.body
-
-    const updateData: any = {}
-    if (status) updateData.status = status
-    if (progress !== undefined) updateData.progress = progress
-    if (currentStep !== undefined) updateData.currentStep = currentStep
-    if (outputs) updateData.outputs = JSON.stringify(outputs)
-    if (logs) updateData.logs = JSON.stringify(logs)
-
-    if (status === 'running' && !updateData.startedAt) {
-      updateData.startedAt = new Date()
-    }
-    if (status === 'completed' || status === 'failed') {
-      updateData.completedAt = new Date()
-    }
-
-    const execution = await prisma.workflowExecution.update({
-      where: { id: req.params.id },
-      data: updateData,
-      include: {
-        workflow: { select: { code: true, name: true } },
-        project: { select: { id: true, name: true } },
-        device: { select: { id: true, name: true } }
-      }
-    })
-
-    res.json(execution)
-  } catch (error) {
-    console.error('Failed to update execution:', error)
-    res.status(500).json({ error: 'Failed to update execution' })
-  }
-})
-
-export default router
+  return router
+}

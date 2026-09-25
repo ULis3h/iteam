@@ -1,0 +1,19 @@
+{
+  "name": "iteam-runner",
+  "version": "1.0.0",
+  "description": "Connects a machine to an iTeam server so its agent CLIs (Claude Code, Codex, Gemini, custom) can execute workflow steps remotely.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "iteam-runner": "bin/iteam-runner.js"
+  },
+  "scripts": {
+    "start": "node bin/iteam-runner.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

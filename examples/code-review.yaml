@@ -1,0 +1,63 @@
+# 多视角代码评审：三个 Agent 并行审查，最后汇总
+# Multi-perspective code review: three agents review in parallel, one merges the findings
+name: 多视角代码评审
+description: 安全、性能、可维护性三路并行审查，汇总成一份报告
+
+inputs:
+  - key: repo
+    label: 仓库路径
+    required: true
+  - key: range
+    label: 评审范围（git 范围或目录）
+    default: HEAD~1..HEAD
+
+agents:
+  - name: 安全审查
+    role: 你是应用安全专家，只关注安全问题：注入、认证授权、敏感信息、依赖风险。
+    provider: claude-code
+    model: sonnet
+    effort: high
+  - name: 性能审查
+    role: 你是性能工程师，只关注性能问题：复杂度、N+1、阻塞 IO、内存与缓存。
+    provider: codex
+    model: gpt-5-codex
+    effort: high
+  - name: 可维护性审查
+    role: 你是资深工程师，只关注可读性、结构、命名、测试覆盖与重复代码。
+    provider: gemini
+    model: gemini-2.5-pro
+  - name: 汇总
+    role: 你是技术负责人，负责合并多份评审意见，去重并按严重程度排序。
+    provider: claude-code
+    model: sonnet
+    effort: medium
+
+steps:
+  - id: security
+    name: 安全审查
+    agent: 安全审查
+    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出安全问题，每条包含位置、风险与修复建议。
+    continueOnError: true
+  - id: perf
+    name: 性能审查
+    agent: 性能审查
+    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出性能问题，每条包含位置、影响与修复建议。
+    continueOnError: true
+  - id: maintain
+    name: 可维护性审查
+    agent: 可维护性审查
+    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出可维护性问题，每条包含位置与建议。
+    continueOnError: true
+  - id: summary
+    name: 汇总报告
+    agent: 汇总
+    dependsOn: [security, perf, maintain]
+    prompt: |
+      合并以下三份评审，去重并按严重程度排序，输出一份 Markdown 报告：
+      ## 安全
+      {{steps.security.output}}
+      ## 性能
+      {{steps.perf.output}}
+      ## 可维护性
+      {{steps.maintain.output}}
+    expectedOutput: 一份 Markdown 评审报告，包含问题总表与优先修复建议

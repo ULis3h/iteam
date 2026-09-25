@@ -1,84 +1,60 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './contexts/AuthContext'
-import { ThemeProvider, useTheme } from './contexts/ThemeContext'
-import ProtectedRoute from './components/ProtectedRoute'
-import Dashboard from './pages/Dashboard'
-import Devices from './pages/Devices'
-import DeviceWorkbench from './pages/DeviceWorkbench'
-import Projects from './pages/Projects'
-import Documents from './pages/Documents'
-import DocumentDetail from './pages/DocumentDetail'
-import DocumentEditor from './pages/DocumentEditor'
-import Agents from './pages/Agents'
-import Workflows from './pages/Workflows'
-import Analytics from './pages/Analytics'
-import Tasks from './pages/Tasks'
-import Test from './pages/Test'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Topology from './pages/Topology';
-import DeviceHUD from './pages/DeviceHUD';
-import Layout from './components/Layout'
-import { useEffect } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { Layout } from './components/Layout'
+import { ErrorBanner, Spinner } from './components/ui'
+import { AppProvider, useApp } from './lib/app'
+import { I18nProvider } from './lib/i18n'
+import { AgentsPage } from './pages/Agents'
+import { OverviewPage } from './pages/Overview'
+import { RunDetailPage } from './pages/RunDetail'
+import { RunsPage } from './pages/Runs'
+import { SettingsPage } from './pages/Settings'
+import { TokenGate } from './pages/TokenGate'
+import { WorkflowEditorPage } from './pages/WorkflowEditor'
+import { WorkflowsPage } from './pages/Workflows'
 
-function AppContent() {
-  const { theme } = useTheme()
-
-  useEffect(() => {
-    // Apply theme class to body
-    if (theme === 'kanban') {
-      document.body.classList.add('theme-kanban')
-    } else {
-      document.body.classList.remove('theme-kanban')
-    }
-  }, [theme])
-
+function Shell() {
+  const { system, needsToken, error } = useApp()
+  if (error && !system) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <ErrorBanner message={`${error} — is the server running on port 3000?`} />
+        </div>
+      </div>
+    )
+  }
+  if (!system) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner size={22} />
+      </div>
+    )
+  }
+  if (needsToken) return <TokenGate />
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          {/* 公开路由 */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
-          {/* 受保护路由 */}
-          <Route
-            path="/*"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Dashboard />} />
-                    <Route path="/devices" element={<Devices />} />
-                    <Route path="/device/:deviceId/workbench" element={<DeviceWorkbench />} />
-                    <Route path="/projects" element={<Projects />} />
-                    <Route path="/documents" element={<Documents />} />
-                    <Route path="/documents/new" element={<DocumentEditor />} />
-                    <Route path="/documents/:id" element={<DocumentDetail />} />
-                    <Route path="/agents" element={<Agents />} />
-                    <Route path="/tasks" element={<Tasks />} />
-                    <Route path="/workflows" element={<Workflows />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/topology" element={<Topology />} />
-                    <Route path="/device/:id/hud" element={<DeviceHUD />} />
-                    <Route path="/test" element={<Test />} />
-                  </Routes>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Router>
-    </AuthProvider>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<OverviewPage />} />
+          <Route path="agents" element={<AgentsPage />} />
+          <Route path="workflows" element={<WorkflowsPage />} />
+          <Route path="workflows/new" element={<WorkflowEditorPage />} />
+          <Route path="workflows/:id" element={<WorkflowEditorPage />} />
+          <Route path="runs" element={<RunsPage />} />
+          <Route path="runs/:id" element={<RunDetailPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
-function App() {
+export default function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <I18nProvider>
+      <AppProvider>
+        <Shell />
+      </AppProvider>
+    </I18nProvider>
   )
 }
-
-export default App

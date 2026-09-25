@@ -1,66 +1,30 @@
-# Dependencies
+# dependencies / builds
 node_modules/
-**/node_modules/
-
-# Build output
 dist/
 build/
-*.local
 
-# Environment files
+# environment
 .env
-.env.local
-.env.*.local
-_bmad/
-_bmad-output
-.cursor
-.opencode
-.trae
-.windsurf
+.env.*
+!.env.example
 
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# Database
+# databases
 *.db
 *.db-journal
 
-# IDE
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Testing
-coverage/
-*.coverage
-
-# Misc
-.cache/
+# logs & temp
+logs/
+*.log
 tmp/
-temp/
+.cache/
 
-# Prisma
-prisma/migrations/
+# editors & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
 
-# Agent/AI tools
-.agent/
+# AI tooling scratch
 .claude/
-.VSCodeCounter/
-
-# Capacitor iOS - Xcode generated files
-ios/App/App/public/
-ios/App/Pods/
-ios/App/DerivedData/
-ios/App/build/
-*.xcuserdatad/
-
+.agent/
+_bmad/
