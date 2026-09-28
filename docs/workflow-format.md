@@ -49,6 +49,8 @@ steps:                            # 必填，至少一个
     continueOnError: false        # 失败时不阻塞下游
     workDir: "{{inputs.repo}}"    # 覆盖工作目录，可用模板变量
     check: npm test               # 验证命令：Agent 完成后在工作目录执行，退出码非 0 则步骤失败
+    when: "{{inputs.mode}} == 'full'"      # 执行条件：为假时跳过本步骤及其下游（见下文）
+    assertOutput: "contains 'FINAL'"     # 输出断言：不满足则视为失败并带着原因重试
 
   - id: approve                   # 人工审批步骤：不需要 agent
     name: 方案确认
@@ -81,6 +83,25 @@ steps:                            # 必填，至少一个
 
 未定义的变量渲染为空字符串，并在该步骤日志中给出警告；保存与导入时会提前检查引用（未声明的输入、引用了未依赖的步骤）。工作目录里的模板变量必须能解析，否则该步骤失败。
 
+## 条件与断言
+
+`when` 与 `assertOutput` 使用同一套简单表达式，不需要 LLM 参与：
+
+| 写法 | 含义 |
+|---|---|
+| `{{inputs.deploy}}` | 真值判断：非空且不是 `false / 0 / no / off` |
+| `{{inputs.mode}} == 'full'` / `!= 'full'` | 相等 / 不等（两侧去空白） |
+| `{{steps.review.output}} contains 'LGTM'` / `!contains` | 包含 / 不包含 |
+| `{{steps.plan.output}} matches /^## /i` / `!matches` | 正则匹配 |
+| `{{steps.x.output}} startsWith 'ok'` / `endsWith '.'` | 前缀 / 后缀 |
+
+- `when` 的左侧是模板文本（可引用 `inputs`、`steps.ID.output`、`steps.ID.status`）。条件为假时步骤标记为**已跳过**，其下游同样跳过，运行仍可成功——这就是分支。
+- `assertOutput` 的左侧隐含为本步骤的输出，只写操作符和值：`contains 'FINAL'`、`/^## /`（等于 `matches`）、`'ok'`（等于 `contains`）。断言不通过时步骤失败；若设置了 `retries`，重试的提示词会附上失败原因与上一次输出。
+
+## 触发 URL
+
+在编辑器右侧为已保存的工作流生成触发 URL：`POST /api/hooks/<workflowId>/<token>`，请求体可为 `{ "inputs": {...}, "name": "..." }`，返回新运行的 `id`。该地址不需要访问令牌（密钥在 URL 里），可用于 CI / GitHub Actions；可随时更换或撤销密钥。
+
 ## 导入规则
 
 - 步骤引用的 Agent **已存在**：直接使用现有配置（文件里的 `agents` 定义不会覆盖它）。
@@ -105,4 +126,4 @@ steps:                            # 必填，至少一个
 
 ## English summary
 
-A workflow file has `name`, optional `description`, optional `settings` (`maxCostUsd`), optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `type` = `agent` | `approval`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`, `check`). An approval step needs no agent: the run waits until a person approves or rejects it in the UI, and the reviewer's note becomes the step output. Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.
+A workflow file has `name`, optional `description`, optional `settings` (`maxCostUsd`), optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `type` = `agent` | `approval`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`, `check`, `when`, `assertOutput`). `when` skips a step (and its descendants) unless a predicate on inputs / upstream results holds (`{{inputs.mode}} == 'full'`, `{{steps.review.output}} contains 'LGTM'`, `matches /re/`, bare template = truthy); `assertOutput` applies the same predicate language to the step's own output and fails the step (retries get the reason) when it does not hold. A saved workflow can expose a trigger URL (`POST /api/hooks/:id/:token`) that starts a run without a session token. An approval step needs no agent: the run waits until a person approves or rejects it in the UI, and the reviewer's note becomes the step output. Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.

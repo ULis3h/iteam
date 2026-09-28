@@ -14,6 +14,8 @@ export function agentRoutes(ctx: AppContext) {
 
   const withState = async (agents: Parameters<typeof serializeAgent>[0][]) => {
     const caps = availableProviderIds(await detectCapabilities())
+    const spend = await ctx.prisma.runStep.groupBy({ by: ['agentId'], _sum: { costUsd: true }, where: { agentId: { in: agents.map((a) => a.id) }, costUsd: { not: null } } })
+    const costById = new Map(spend.map((s) => [s.agentId, s._sum.costUsd ?? 0]))
     return agents.map((a) => {
       const busy = ctx.runs.runningCount(a.id)
       const online = a.location === 'local' ? true : ctx.registry.isOnline(a.runnerId)
@@ -21,7 +23,7 @@ export function agentRoutes(ctx: AppContext) {
         ? caps.includes(a.provider)
         : parseJson<string[]>(a.runner?.capabilities ?? '[]', []).includes(a.provider) || a.provider === 'custom'
       const state = !online ? 'offline' : busy ? 'busy' : cliAvailable ? 'ready' : 'missing-cli'
-      return { ...serializeAgent(a, a.location === 'remote' ? online : undefined), state, busy }
+      return { ...serializeAgent(a, a.location === 'remote' ? online : undefined), state, busy, costTotal: costById.get(a.id) ?? 0 }
     })
   }
 

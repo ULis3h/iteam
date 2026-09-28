@@ -8,7 +8,7 @@ import { Card, ErrorBanner, Field, InfoBanner, Spinner, Toggle } from '../compon
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { layoutDag } from '../lib/dag'
-import { ensureId, slugify } from '../lib/format'
+import { copyText, ensureId, slugify } from '../lib/format'
 import { useT } from '../lib/i18n'
 import type { Agent, Effort, Workflow, WorkflowDefinition, WorkflowInput, WorkflowStep } from '../types'
 
@@ -38,7 +38,11 @@ export function WorkflowEditorPage() {
   const [warnings, setWarnings] = useState<string[]>([])
   // stable React keys for step cards (step ids are user-editable)
   const [uids, setUids] = useState<string[]>([])
+  const [hookToken, setHookToken] = useState<string | null>(null)
+  const [hookCopied, setHookCopied] = useState(false)
   const dirtyGuard = useDirty()
+  const serverPort = window.location.port === '5173' ? '3000' : window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+  const hookUrl = `${window.location.protocol}//${window.location.hostname}:${serverPort}/api/hooks/${id}/${hookToken}`
 
   useEffect(() => {
     api.agents().then(setAgents).catch((e) => setError(e.message))
@@ -46,7 +50,8 @@ export function WorkflowEditorPage() {
     api
       .workflow(id)
       .then((w) => {
-        setDef({ name: w.name, description: w.description, inputs: w.inputs, steps: w.steps, settings: w.settings ?? {} })
+        setDef({ name: w.name, description: w.description, inputs: w.inputs, steps: w.steps, settings: { maxCostUsd: w.settings?.maxCostUsd } })
+        setHookToken(w.settings?.hookToken ?? null)
         setUids(w.steps.map(() => crypto.randomUUID()))
         setExpanded(Object.fromEntries(w.steps.map((s) => [s.id, true])))
       })
@@ -132,7 +137,7 @@ export function WorkflowEditorPage() {
         steps: def.steps.map((s) =>
           s.type === 'approval'
             ? { id: s.id, name: s.name.trim() || s.id, type: 'approval' as const, agentId: '', prompt: s.prompt, dependsOn: s.dependsOn, continueOnError: s.continueOnError || undefined }
-            : { ...s, type: undefined, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined, check: s.check?.trim() || undefined },
+            : { ...s, type: undefined, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined, check: s.check?.trim() || undefined, when: s.when?.trim() || undefined, assertOutput: s.assertOutput?.trim() || undefined },
         ),
       }
       const saved = id ? await api.updateWorkflow(id, payload) : await api.createWorkflow(payload)
@@ -300,7 +305,33 @@ export function WorkflowEditorPage() {
           </div>
         </div>
 
-        <div className="xl:sticky xl:top-6 self-start">
+        <div className="xl:sticky xl:top-6 self-start space-y-4">
+          {!isNew && (
+            <Card className="p-4">
+              <h2 className="text-[13px] font-semibold mb-1">{t('editor.hook.title')}</h2>
+              <p className="text-[12px] text-ink-muted mb-3">{t('editor.hook.desc')}</p>
+              {hookToken ? (
+                <>
+                  <pre className="mono text-[11px] whitespace-pre-wrap break-all bg-[#f7f7f9] rounded-xl p-3 text-ink-soft">{`curl -X POST ${hookUrl} \\\n  -H 'Content-Type: application/json' \\\n  -d '{"inputs":{}}'`}</pre>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button className="btn-secondary btn-sm" onClick={async () => setHookCopied(await copyText(hookUrl))}>
+                      {hookCopied ? t('common.copied') : t('common.copy')}
+                    </button>
+                    <button className="btn-ghost btn-sm" onClick={() => api.createHook(id!, true).then((h) => setHookToken(h.token)).catch((e) => setError(e.message))}>
+                      {t('editor.hook.rotate')}
+                    </button>
+                    <button className="btn-ghost btn-sm hover:!text-status-failed" onClick={() => api.deleteHook(id!).then(() => setHookToken(null)).catch((e) => setError(e.message))}>
+                      {t('editor.hook.revoke')}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button className="btn-secondary btn-sm" onClick={() => api.createHook(id!).then((h) => setHookToken(h.token)).catch((e) => setError(e.message))}>
+                  {t('editor.hook.create')}
+                </button>
+              )}
+            </Card>
+          )}
           <Card className="p-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-[13px] font-semibold">{t('editor.preview')}</h2>
@@ -364,7 +395,7 @@ function StepCard({
 }) {
   const { t } = useT()
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir || step.check))
+  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir || step.check || step.when || step.assertOutput))
   const agent = agents.find((a) => a.id === step.agentId)
   const approval = step.type === 'approval'
   const others = steps.filter((s) => s.id !== step.id)
@@ -536,6 +567,16 @@ function StepCard({
               <div className="col-span-2 md:col-span-4">
                 <Field label={t('editor.step.check')} hint={t('editor.step.checkPlaceholder')}>
                   <input className="input mono" placeholder="npm test" value={step.check ?? ''} onChange={(e) => onChange({ check: e.target.value || undefined })} />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label={t('editor.step.when')} hint={t('editor.step.whenPlaceholder')}>
+                  <input className="input mono" placeholder="{{steps.review.output}} contains 'LGTM'" value={step.when ?? ''} onChange={(e) => onChange({ when: e.target.value || undefined })} />
+                </Field>
+              </div>
+              <div className="col-span-2">
+                <Field label={t('editor.step.assertOutput')} hint={t('editor.step.assertOutputPlaceholder')}>
+                  <input className="input mono" placeholder="contains 'FINAL'" value={step.assertOutput ?? ''} onChange={(e) => onChange({ assertOutput: e.target.value || undefined })} />
                 </Field>
               </div>
             </div>

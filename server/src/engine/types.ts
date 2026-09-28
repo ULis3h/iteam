@@ -101,11 +101,17 @@ export interface WorkflowStep {
   resumeSessionId?: string
   /** Shell command that must exit 0 (in the step's working directory) for the step to count as succeeded. */
   check?: string
+  /** Predicate on inputs / upstream results; when false the step (and its descendants) are skipped. See conditions.ts. */
+  when?: string
+  /** Predicate the step output must satisfy (e.g. `contains 'FINAL'`); otherwise the step fails and retries with feedback. */
+  assertOutput?: string
 }
 
 export interface WorkflowSettings {
   /** Cancel the run once the summed step cost (from the CLIs' own reports) exceeds this amount. */
   maxCostUsd?: number
+  /** Secret of the inbound trigger URL (POST /api/hooks/:workflowId/:token); absent = no trigger. */
+  hookToken?: string
 }
 
 export interface WorkflowDefinition {

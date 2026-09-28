@@ -17,6 +17,13 @@ All notable changes to iTeam are recorded here. The format follows [Keep a Chang
 - Orphaned local agent processes are killed when the server restarts after a crash; runners cancel jobs the server no longer knows.
 - CLI versions in Settings; live "will run" command preview in the agent form (`POST /agents/preview`); note on the run page when its workflow changed or was deleted.
 - SQLite runs in WAL mode with a busy timeout.
+- **Conditional steps** (`when`) branch on inputs or upstream results without an LLM; **output assertions** (`assertOutput`) fail a step whose answer does not satisfy a predicate and feed the reason into retries.
+- **Trigger URLs** per workflow (`POST /api/hooks/:id/:token`) start runs from CI or any HTTP client; rotate or revoke from the editor.
+- Cost visibility: 24h spend on the overview, per-run totals in the run list, per-agent totals on agent cards.
+- Webhook payloads formatted for Slack and Discord incoming webhooks; coloured diff view in the step detail.
+
+### Fixed
+- Workflow settings (cost limit) were not persisted when a workflow was created or updated through the API and were returned as a raw string.
 
 ### Changed
 - Codex agents without auto-approve now run with `--sandbox workspace-write` instead of `--full-auto`.

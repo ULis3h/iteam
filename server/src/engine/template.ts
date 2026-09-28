@@ -24,12 +24,13 @@ export function renderTemplate(
 }
 
 /** Static check of template references against a workflow definition (used by validation). */
-export function templateIssues(def: { inputs: Array<{ key: string }>; steps: Array<{ id: string; name: string; prompt: string; dependsOn: string[] }> }): string[] {
+export function templateIssues(def: { inputs: Array<{ key: string }>; steps: Array<{ id: string; name: string; prompt: string; dependsOn: string[]; when?: string; workDir?: string }> }): string[] {
   const issues: string[] = []
   const inputKeys = new Set(def.inputs.map((i) => i.key))
   const stepIds = new Set(def.steps.map((s) => s.id))
   for (const step of def.steps) {
-    const refs = [...step.prompt.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/g)].map((m) => m[1])
+    const text = [step.prompt, step.when ?? '', step.workDir ?? ''].join('\n')
+    const refs = [...text.matchAll(/\{\{\s*([\w.-]+)\s*\}\}/g)].map((m) => m[1])
     for (const ref of refs) {
       const [root, name] = ref.split('.')
       if ((root === 'inputs' || root === 'input') && name && !inputKeys.has(name)) issues.push(`step "${step.name}": unknown input {{${ref}}}`)

@@ -7,14 +7,27 @@ import { log } from '../logger.js'
  * webhook (ITEAM_WEBHOOK_URL) that receives a JSON POST; the web UI gets the
  * same events over the socket and can show browser notifications.
  */
-export async function notifyRun(event: 'finished' | 'waiting', run: Run) {
-  if (!config.webhookUrl) return
-  const payload = {
+const ICON: Record<string, string> = { succeeded: '✅', failed: '❌', cancelled: '⏹️', waiting: '⏸️' }
+
+/** Payload shape depends on the destination: Slack and Discord incoming webhooks want a single text field. */
+export function webhookPayload(event: 'finished' | 'waiting', run: Run, url: string, destination: string): unknown {
+  const icon = ICON[run.status] ?? 'ℹ️'
+  const headline = event === 'waiting' ? `${icon} ${run.name} is waiting for approval` : `${icon} ${run.name} ${run.status}${run.error ? `: ${run.error}` : ''}`
+  const text = `${headline}\n${url}`
+  if (/hooks\.slack\.com\//.test(destination)) return { text }
+  if (/discord(app)?\.com\/api\/webhooks\//.test(destination)) return { content: text.slice(0, 1900) }
+  return {
     event,
+    text,
     run: { id: run.id, name: run.name, status: run.status, error: run.error, startedAt: run.startedAt, finishedAt: run.finishedAt },
-    url: `${config.publicUrl}/runs/${run.id}`,
+    url,
     sentAt: new Date().toISOString(),
   }
+}
+
+export async function notifyRun(event: 'finished' | 'waiting', run: Run) {
+  if (!config.webhookUrl) return
+  const payload = webhookPayload(event, run, `${config.publicUrl}/runs/${run.id}`, config.webhookUrl)
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 8000)

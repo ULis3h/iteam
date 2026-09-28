@@ -113,6 +113,7 @@ export function RunsPage() {
                     <span key={s.id} className="w-2 h-2 rounded-full" style={{ background: statusColor(s.status) }} />
                   ))}
                 </div>
+                {steps.some((s) => s.costUsd != null) && <span className="text-[12px] text-ink-muted font-mono hidden md:inline">${steps.reduce((sum, s) => sum + (s.costUsd ?? 0), 0).toFixed(2)}</span>}
                 <span className="text-[12px] text-ink-soft font-mono w-16 text-right">{formatDuration(run.startedAt, run.finishedAt)}</span>
                 <button className="btn-ghost btn-sm !px-2 hover:!text-status-failed" disabled={isActive(run.status)} onClick={() => remove(run)}>
                   <Trash2 size={14} />

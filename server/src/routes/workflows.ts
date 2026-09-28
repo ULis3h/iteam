@@ -1,6 +1,9 @@
 import { Router } from 'express'
+import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { parseJson } from '../db.js'
+import type { WorkflowSettings } from '../engine/types.js'
 import { config } from '../config.js'
 import type { AppContext } from '../context.js'
 import { stages, topologicalOrder } from '../engine/dag.js'
@@ -153,6 +156,33 @@ export function workflowRoutes(ctx: AppContext) {
     }),
   )
 
+  /** Inbound trigger: a secret URL that starts a run from CI or any HTTP client (no session token needed). */
+  router.post(
+    '/:id/hook',
+    asyncRoute(async (req, res) => {
+      const workflow = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id } })
+      if (!workflow) throw new HttpError(404, 'workflow not found')
+      const settings = parseJson<WorkflowSettings>(workflow.settings, {})
+      const rotate = req.query.rotate === '1'
+      const token = !rotate && settings.hookToken ? settings.hookToken : randomBytes(24).toString('hex')
+      const updated = await ctx.prisma.workflow.update({ where: { id: workflow.id }, data: { settings: JSON.stringify({ ...settings, hookToken: token }) } })
+      ctx.broadcast.all('workflow:changed', serializeWorkflow(updated))
+      res.json({ token, path: `/api/hooks/${workflow.id}/${token}` })
+    }),
+  )
+
+  router.delete(
+    '/:id/hook',
+    asyncRoute(async (req, res) => {
+      const workflow = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id } })
+      if (!workflow) throw new HttpError(404, 'workflow not found')
+      const { hookToken: _token, ...rest } = parseJson<WorkflowSettings>(workflow.settings, {})
+      const updated = await ctx.prisma.workflow.update({ where: { id: workflow.id }, data: { settings: JSON.stringify(rest) } })
+      ctx.broadcast.all('workflow:changed', serializeWorkflow(updated))
+      res.status(204).end()
+    }),
+  )
+
   router.get(
     '/:id/export',
     asyncRoute(async (req, res) => {
@@ -174,7 +204,7 @@ export function workflowRoutes(ctx: AppContext) {
     asyncRoute(async (req, res) => {
       const { data } = await validateBody(req.body)
       const workflow = await ctx.prisma.workflow.create({
-        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps), source: 'ui' },
+        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps), settings: JSON.stringify({ maxCostUsd: data.settings.maxCostUsd }), source: 'ui' },
       })
       ctx.broadcast.all('workflow:changed', serializeWorkflow(workflow))
       res.status(201).json(serializeWorkflow(workflow))
@@ -185,9 +215,13 @@ export function workflowRoutes(ctx: AppContext) {
     '/:id',
     asyncRoute(async (req, res) => {
       const { data } = await validateBody(req.body)
+      const existing = await ctx.prisma.workflow.findUnique({ where: { id: req.params.id }, select: { settings: true } })
+      if (!existing) throw new HttpError(404, 'workflow not found')
+      // the trigger secret is managed through /hook and survives ordinary edits
+      const settings = { maxCostUsd: data.settings.maxCostUsd, hookToken: parseJson<WorkflowSettings>(existing.settings, {}).hookToken }
       const workflow = await ctx.prisma.workflow.update({
         where: { id: req.params.id },
-        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps) },
+        data: { name: data.name, description: data.description, inputs: JSON.stringify(data.inputs), steps: JSON.stringify(data.steps), settings: JSON.stringify(settings) },
       })
       ctx.broadcast.all('workflow:changed', serializeWorkflow(workflow))
       res.json(serializeWorkflow(workflow))

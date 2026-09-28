@@ -116,6 +116,11 @@ export function AgentsPage() {
                   {agent.location === 'local' ? t('common.local') : agent.runner?.name ?? t('common.remote')}
                 </span>
                 {agent.maxConcurrent > 1 && <span className="chip">×{agent.maxConcurrent}</span>}
+                {(agent.costTotal ?? 0) > 0 && (
+                  <span className="chip" title={t('agents.spend')}>
+                    ${agent.costTotal!.toFixed(2)}
+                  </span>
+                )}
               </div>
               {agent.role && <p className="mt-3 text-[12px] text-ink-soft line-clamp-2 leading-snug">{agent.role}</p>}
               <div className="mt-4 flex items-center justify-between">

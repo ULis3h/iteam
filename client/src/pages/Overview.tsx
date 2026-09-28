@@ -99,6 +99,7 @@ export function OverviewPage() {
         [t('overview.stat.running'), stats.running],
         [t('overview.stat.succeeded'), stats.succeeded24h],
         [t('overview.stat.failed'), stats.failed24h],
+        ...((stats.costTotal ?? 0) > 0 ? ([[t('overview.stat.cost'), `$${(stats.cost24h ?? 0).toFixed(2)}`]] as Array<[string, number | string]>) : []),
       ]
     : []
 
@@ -107,7 +108,7 @@ export function OverviewPage() {
       <PageHeader title={t('overview.title')} subtitle={t('overview.subtitle')} />
       <ErrorBanner message={error} onClose={() => setError(null)} />
 
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      <div className={`grid grid-cols-3 gap-3 mb-6 ${statCards.length > 6 ? 'lg:grid-cols-7' : 'lg:grid-cols-6'}`}>
         {statCards.map(([label, value]) => (
           <Card key={label} className="p-4 fade-in">
             <div className="text-[11px] text-ink-muted">{label}</div>

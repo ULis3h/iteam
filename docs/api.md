@@ -11,7 +11,7 @@ Base URL: `http://localhost:3000/api`。所有响应为 JSON。
 | GET | `/health` | 健康检查 |
 | GET | `/system` | 版本、是否需要令牌、提供方列表；带有效令牌时还返回监听地址、并行上限、默认目录、本机 CLI 检测（路径与版本；`?refresh=1` 重新检测） |
 | POST | `/auth/verify` | 验证令牌（200 / 401） |
-| GET | `/stats` | 概览计数 |
+| GET | `/stats` | 概览计数（含 `cost24h`、`costTotal`） |
 | GET | `/templates` | 内置模板（`examples/` 下的文件，含内容） |
 
 ## Agent
@@ -48,6 +48,8 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 | GET | `/workflows/:id/export?format=yaml\|json&includeEnv=1` | 导出（默认不含 Agent 环境变量） |
 | POST | `/workflows/:id/run` | `{ inputs?, name? }` 开始运行 |
 | POST | `/workflows/demo` | 导入（一次）并运行 `examples/demo.yaml`：内置演示 Agent，无需 CLI |
+| POST / DELETE | `/workflows/:id/hook` | 生成（`?rotate=1` 更换）/ 撤销触发 URL 的密钥，返回 `{ token, path }` |
+| POST | `/hooks/:workflowId/:token` | **公开**：用触发密钥启动运行，`{ inputs?, name? }` → `{ id, status }`；连续失败会被限流 |
 
 ## 运行
 
@@ -84,10 +86,10 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 
 ## Webhook
 
-设置 `ITEAM_WEBHOOK_URL` 后，运行结束或进入等待审批时会 POST：
+设置 `ITEAM_WEBHOOK_URL` 后，运行结束或进入等待审批时会 POST。Slack（`hooks.slack.com`）收到 `{ text }`，Discord（`discord.com/api/webhooks`）收到 `{ content }`，其他地址收到：
 
 ```json
-{ "event": "finished" | "waiting", "run": { "id", "name", "status", "error", "startedAt", "finishedAt" }, "url": "<ITEAM_PUBLIC_URL>/runs/<id>", "sentAt": "…" }
+{ "event": "finished" | "waiting", "text": "✅ <名称> succeeded\n<链接>", "run": { "id", "name", "status", "error", "startedAt", "finishedAt" }, "url": "<ITEAM_PUBLIC_URL>/runs/<id>", "sentAt": "…" }
 ```
 
 ## curl 示例

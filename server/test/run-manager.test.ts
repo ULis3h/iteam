@@ -539,4 +539,47 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSW
     const all = await prisma.runLog.findMany({ where: { stepId: { in: done.steps.map((s) => s.id) } } })
     expect(all.some((l) => l.line.startsWith('⏳ waiting for agent "slow-one" (1/1 running)'))).toBe(true)
   })
+
+  it('skips steps whose `when` condition is false (and their descendants) and enforces assertOutput with retry feedback', async () => {
+    const echo = await prisma.agent.findUniqueOrThrow({ where: { name: 'echo' } })
+    const def: WorkflowDefinition = {
+      name: 'branches',
+      description: '',
+      inputs: [{ key: 'mode', default: 'quick' }],
+      steps: [
+        { id: 'plan', name: 'Plan', agentId: echo.id, prompt: 'plan LGTM', dependsOn: [] },
+        { id: 'full', name: 'Full', agentId: echo.id, prompt: 'full', dependsOn: ['plan'], when: "{{inputs.mode}} == 'full'" },
+        { id: 'after-full', name: 'After full', agentId: echo.id, prompt: 'x', dependsOn: ['full'] },
+        { id: 'quick', name: 'Quick', agentId: echo.id, prompt: 'quick', dependsOn: ['plan'], when: "{{steps.plan.output}} contains 'LGTM'" },
+        { id: 'bad', name: 'Bad expr', agentId: echo.id, prompt: 'x', dependsOn: ['plan'], when: '{{steps.plan.output}} matches /(/', continueOnError: true },
+      ],
+    }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished)
+    const byKey = Object.fromEntries(run.steps.map((s) => [s.key, s]))
+    expect(run.status).toBe('succeeded')
+    expect(byKey.full.status).toBe('skipped')
+    expect(byKey.full.error).toMatch(/condition not met \("quick" == 'full' → false\)/)
+    expect(byKey['after-full'].status).toBe('skipped')
+    expect(byKey.quick.status).toBe('succeeded')
+    expect(byKey.bad.status).toBe('failed')
+    expect(byKey.bad.error).toMatch(/invalid when expression/)
+
+    // assertOutput: first attempt prints a draft, the retry (told why) prints the final answer
+    const marker = path.join(dir, 'marker-assert')
+    const drafty = await makeAgent('drafty', `cat > /tmp/drafty-prompt.txt; if [ -f '${marker}' ]; then printf 'FINAL: done'; else touch '${marker}'; printf 'draft only'; fi`)
+    const guarded = await manager.createRun({ name: 'guard', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: drafty.id, prompt: 'write', dependsOn: [], retries: 1, assertOutput: "startsWith 'FINAL'" }] }, {})
+    await manager.start(guarded.id)
+    const g = await waitFor(guarded.id, finished)
+    expect(g.status).toBe('succeeded')
+    expect(g.steps[0].attempt).toBe(2)
+    expect(g.steps[0].output).toBe('FINAL: done')
+    expect(g.steps[0].prompt).toContain("output check failed: output startsWith 'FINAL' → false")
+    expect(g.steps[0].prompt).toContain('draft only')
+    await logs.flush()
+    const lines = (await prisma.runLog.findMany({ where: { stepId: g.steps[0].id } })).map((l) => l.line)
+    expect(lines).toContain("✗ output check: output startsWith 'FINAL' → false")
+    expect(lines).toContain("✓ output check: output startsWith 'FINAL' → true")
+  })
 })

@@ -98,6 +98,8 @@ export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): 
       continueOnError: s.continueOnError,
       workDir: s.workDir,
       check: s.check,
+      when: s.when,
+      assertOutput: s.assertOutput,
     }))
 
     return tx.workflow.create({
@@ -133,7 +135,7 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
     name: def.name,
     description: def.description || undefined,
     inputs: def.inputs.length ? def.inputs : undefined,
-    settings: def.settings && Object.keys(def.settings).length ? def.settings : undefined,
+    settings: def.settings?.maxCostUsd ? { maxCostUsd: def.settings.maxCostUsd } : undefined,
     agents: agents.map((a) =>
       compact({
         name: a.name,
@@ -168,6 +170,8 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
         continueOnError: s.continueOnError || undefined,
         workDir: s.workDir,
         check: s.check,
+        when: s.when,
+        assertOutput: s.assertOutput,
         expectedOutput: s.expectedOutput,
         prompt: s.prompt,
       }),

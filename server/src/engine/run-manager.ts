@@ -4,6 +4,7 @@ import { config } from '../config.js'
 import { parseJson } from '../db.js'
 import { log } from '../logger.js'
 import { buildJob, DEMO_COMMAND, PROVIDERS } from './adapters.js'
+import { evaluateAssertion, evaluateCondition } from './conditions.js'
 import { topologicalOrder } from './dag.js'
 import { runDemoJob } from './demo-agent.js'
 import { killStaleProcess, runLocalJob } from './local-executor.js'
@@ -381,6 +382,29 @@ export class RunManager {
         if (!deps.every(isSatisfied)) continue
 
         const stepDef = defByKey.get(step.key)
+        if (stepDef?.when?.trim()) {
+          // branch without an LLM: a false condition skips this step and everything downstream of it
+          const ctx = this.templateContext(run, def, byKey)
+          let verdict
+          try {
+            verdict = evaluateCondition(stepDef.when, (t) => renderTemplate(t, ctx).text)
+          } catch (err) {
+            byKey.set(step.key, await this.failStep(run, step, `invalid when expression: ${(err as Error).message}`, false))
+            continue
+          }
+          if (!verdict.ok) {
+            await this.logs.prime(step.id)
+            this.logs.write(run.id, step.id, 'system', `⤼ condition not met: ${verdict.detail}`)
+            const updated = await this.prisma.runStep.update({
+              where: { id: step.id },
+              data: { status: 'skipped', error: `skipped: condition not met (${verdict.detail})`, finishedAt: new Date() },
+            })
+            byKey.set(step.key, updated)
+            this.events.step(updated)
+            this.logs.forget(step.id)
+            continue
+          }
+        }
         if (isApproval(stepDef)) {
           // no process, no capacity: park the step until a person decides
           byKey.set(step.key, await this.holdForApproval(run, step, stepDef!, byKey, def))
@@ -625,6 +649,8 @@ export class RunManager {
     await this.withLock(runId, async () => {
       const step = await this.prisma.runStep.findUnique({ where: { id: stepId } })
       if (!step || step.status !== 'running') return
+      const runRow = await this.prisma.run.findUnique({ where: { id: runId }, select: { snapshot: true } })
+      const stepDef = runRow ? parseJson<WorkflowDefinition | null>(runRow.snapshot, null)?.steps.find((s) => s.id === step.key) : undefined
 
       const write = (line: string) => this.logs.write(runId, stepId, 'system', line)
       // With an event-stream parser the final answer comes from the parser; fall back to raw stdout
@@ -632,8 +658,22 @@ export class RunManager {
       const output = parserKind === 'claude-stream-json' ? (usage.output ?? result.output) : result.output?.trim() ? result.output : (usage.output ?? '')
       if (result.truncated) write('note: captured output was truncated to the last part')
       if (result.diff) write(`changes in working tree: ${result.diff.split('\n')[0].trim().slice(0, 200)}`)
-      const failure = result.error ?? (usage.isError ? (usage.errorMessage ?? 'agent reported an error') : undefined)
-      const success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
+      let failure = result.error ?? (usage.isError ? (usage.errorMessage ?? 'agent reported an error') : undefined)
+      let success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
+      if (success && stepDef?.assertOutput?.trim()) {
+        // guardrail: the answer itself has to satisfy the assertion, otherwise this counts as a failure (and retries get the reason)
+        try {
+          const verdict = evaluateAssertion(stepDef.assertOutput, output ?? '')
+          write(`${verdict.ok ? '✓' : '✗'} output check: ${verdict.detail}`)
+          if (!verdict.ok) {
+            success = false
+            failure = `output check failed: ${verdict.detail}`
+          }
+        } catch (err) {
+          success = false
+          failure = `invalid assertOutput expression: ${(err as Error).message}`
+        }
+      }
       const meta = {
         pid: null,
         sessionId: usage.sessionId ?? step.sessionId,

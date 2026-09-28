@@ -354,6 +354,18 @@ const zh = {
   'overview.demo.hint': '用内置演示 Agent 跑一条流水线，一分钟看懂 iTeam。',
   'runDetail.drift': '工作流在此运行之后被修改过。「重新运行」使用本次冻结的定义；要用新定义，请从工作流页运行。',
   'runDetail.workflowDeleted': '该工作流已被删除；「重新运行」仍使用本次冻结的定义。',
+  'editor.step.when': '执行条件（when）',
+  'editor.step.whenPlaceholder': "例如 {{steps.review.output}} contains 'LGTM'；不满足时跳过本步骤及其下游",
+  'editor.step.assertOutput': '输出断言',
+  'editor.step.assertOutputPlaceholder': "例如 contains 'FINAL' 或 /^## /；不满足则视为失败并带着原因重试",
+  'editor.hook.title': '触发 URL',
+  'editor.hook.desc': '从 CI、GitHub Action 或任何 HTTP 客户端 POST 到该地址即可启动运行（请求体可带 inputs）。地址包含密钥，请妥善保管。',
+  'editor.hook.create': '生成触发 URL',
+  'editor.hook.rotate': '更换密钥',
+  'editor.hook.revoke': '撤销',
+  'editor.hook.saveFirst': '保存工作流后可生成触发 URL。',
+  'overview.stat.cost': '24h 费用',
+  'agents.spend': '累计费用',
 }
 
 const en: Record<keyof typeof zh, string> = {
@@ -707,6 +719,18 @@ const en: Record<keyof typeof zh, string> = {
   'overview.demo.hint': 'Run a pipeline with built-in demo agents and see how iTeam works in a minute.',
   'runDetail.drift': 'The workflow changed after this run. “Run again” uses the frozen definition of this run; start from the workflow page to use the new one.',
   'runDetail.workflowDeleted': 'The workflow was deleted; “Run again” still uses this run’s frozen definition.',
+  'editor.step.when': 'Condition (when)',
+  'editor.step.whenPlaceholder': "e.g. {{steps.review.output}} contains 'LGTM' — when false, this step and its descendants are skipped",
+  'editor.step.assertOutput': 'Output assertion',
+  'editor.step.assertOutputPlaceholder': "e.g. contains 'FINAL' or /^## / — otherwise the step fails and retries with the reason",
+  'editor.hook.title': 'Trigger URL',
+  'editor.hook.desc': 'POST to this address from CI, a GitHub Action or any HTTP client to start a run (the body may carry inputs). The URL contains a secret; keep it private.',
+  'editor.hook.create': 'Create trigger URL',
+  'editor.hook.rotate': 'Rotate secret',
+  'editor.hook.revoke': 'Revoke',
+  'editor.hook.saveFirst': 'Save the workflow to create a trigger URL.',
+  'overview.stat.cost': '24h cost',
+  'agents.spend': 'Total cost',
 }
 
 export type TKey = keyof typeof zh

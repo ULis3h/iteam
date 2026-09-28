@@ -79,6 +79,8 @@ export const api = {
     request<{ workflow: Workflow; createdAgents: Array<{ id: string; name: string; defaulted: boolean }>; run: Run | null }>('POST', '/workflows/import', { content, run, inputs }),
   templates: () => request<WorkflowTemplate[]>('GET', '/templates'),
   demoRun: () => request<Run>('POST', '/workflows/demo', {}),
+  createHook: (id: string, rotate = false) => request<{ token: string; path: string }>('POST', `/workflows/${id}/hook${rotate ? '?rotate=1' : ''}`, {}),
+  deleteHook: (id: string) => request<void>('DELETE', `/workflows/${id}/hook`),
   exportWorkflow: (id: string, format: 'yaml' | 'json') => request<string>('GET', `/workflows/${id}/export?format=${format}`, undefined, { raw: true }),
 
   runs: (params: { status?: string; workflowId?: string; limit?: number; before?: string } = {}) => {

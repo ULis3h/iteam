@@ -69,9 +69,11 @@ export interface Agent {
   runner?: Runner | null
   state: AgentState
   busy: number
+  /** Summed cost reported by this agent's steps (USD). */
+  costTotal?: number
 }
 
-export type AgentInput = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'runner' | 'state' | 'busy'>
+export type AgentInput = Omit<Agent, 'id' | 'createdAt' | 'updatedAt' | 'runner' | 'state' | 'busy' | 'costTotal'>
 
 export interface WorkflowInput {
   key: string
@@ -99,11 +101,17 @@ export interface WorkflowStep {
   resumeSessionId?: string
   /** Shell command that must exit 0 in the working directory for the step to succeed. */
   check?: string
+  /** Predicate on inputs / upstream results; false skips the step and its descendants. */
+  when?: string
+  /** Predicate the output must satisfy, otherwise the step fails (and retries with feedback). */
+  assertOutput?: string
 }
 
 export interface WorkflowSettings {
   /** Stop the run once the summed step cost exceeds this amount (USD). */
   maxCostUsd?: number
+  /** Secret of the inbound trigger URL; managed through the hook endpoints, never edited directly. */
+  hookToken?: string
 }
 
 export interface Workflow {
@@ -207,6 +215,8 @@ export interface Stats {
   failed24h: number
   succeeded24h: number
   runs24h: number
+  cost24h?: number
+  costTotal?: number
 }
 
 export interface ImportPreview {

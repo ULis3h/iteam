@@ -15,6 +15,7 @@ const effortSchema = z.enum(EFFORTS as [string, ...string[]])
 
 export const settingsSchema = z.object({
   maxCostUsd: z.number().positive().max(100000).optional(),
+  hookToken: z.string().regex(/^[a-f0-9]{32,64}$/).optional(),
 })
 
 export const stepFieldsSchema = z.object({
@@ -32,6 +33,8 @@ export const stepFieldsSchema = z.object({
   workDir: z.string().max(1024).optional(),
   resumeSessionId: z.string().optional(),
   check: z.string().trim().max(2000).optional(),
+  when: z.string().trim().max(500).optional(),
+  assertOutput: z.string().trim().max(500).optional(),
 })
 
 const agentRequired = (s: { type?: string; agentId?: string; agent?: string }) => s.type === 'approval' || !!(s.agentId ?? s.agent)

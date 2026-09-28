@@ -328,11 +328,33 @@ export function RunDetailPage() {
   )
 }
 
-function TextBlock({ label, text, tone }: { label: string; text: string; tone?: 'error' }) {
+const diffLineClass = (line: string) => {
+  if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff --git') || line.startsWith('index ')) return 'text-ink font-semibold'
+  if (line.startsWith('@@')) return 'text-accent'
+  if (line.startsWith('+')) return 'text-status-success bg-green-50'
+  if (line.startsWith('-')) return 'text-status-failed bg-red-50'
+  return 'text-ink-soft'
+}
+
+/** Unified diff with per-line colouring (no external dependency). */
+function DiffText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split('\n').map((line, i) => (
+        <span key={i} className={`block px-1 -mx-1 ${diffLineClass(line)}`}>
+          {line || ' '}
+        </span>
+      ))}
+    </>
+  )
+}
+
+function TextBlock({ label, text, tone }: { label: string; text: string; tone?: 'error' | 'diff' }) {
   const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const cls = tone === 'error' ? 'bg-red-50 text-status-failed' : 'bg-[#f7f7f9]'
+  const body = tone === 'diff' ? <DiffText text={text} /> : text
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
@@ -353,9 +375,9 @@ function TextBlock({ label, text, tone }: { label: string; text: string; tone?: 
           </button>
         </div>
       </div>
-      <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-3 max-h-64 overflow-auto ${cls}`}>{text}</pre>
+      <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-3 max-h-64 overflow-auto ${cls}`}>{body}</pre>
       <Modal open={expanded} onClose={() => setExpanded(false)} title={label} wide>
-        <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-4 ${cls}`}>{text}</pre>
+        <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-4 ${cls}`}>{body}</pre>
       </Modal>
     </div>
   )
@@ -463,7 +485,7 @@ function StepDetail({
       )}
       {step.error && <TextBlock label={t('runDetail.error')} text={step.error} tone="error" />}
       {step.output && <TextBlock label={t('runDetail.output')} text={step.output} />}
-      {step.diff && <TextBlock label={t('runDetail.diff')} text={step.diff} />}
+      {step.diff && <TextBlock label={t('runDetail.diff')} text={step.diff} tone="diff" />}
       {step.prompt && step.status !== 'waiting' && (
         <div>
           <button className="label !mb-1 underline underline-offset-2 hover:text-ink" onClick={() => setShowPrompt((v) => !v)}>
