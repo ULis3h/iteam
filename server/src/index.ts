@@ -18,6 +18,7 @@ import { HttpError, serializeRun, serializeStep } from './routes/helpers.js'
 import { runnerRoutes } from './routes/runners.js'
 import { runRoutes } from './routes/runs.js'
 import { publicRoutes, systemRoutes } from './routes/system.js'
+import { templateRoutes } from './routes/templates.js'
 import { workflowRoutes } from './routes/workflows.js'
 import { setupSockets } from './ws/index.js'
 
@@ -45,6 +46,7 @@ app.use('/api/agents', agentRoutes(ctx))
 app.use('/api/runners', runnerRoutes(ctx))
 app.use('/api/workflows', workflowRoutes(ctx))
 app.use('/api/runs', runRoutes(ctx))
+app.use('/api/templates', templateRoutes(ctx))
 
 // Serve the built web UI when present (single-port production mode).
 if (existsSync(config.clientDist)) {

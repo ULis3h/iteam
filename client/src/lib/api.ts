@@ -1,4 +1,4 @@
-import type { Agent, AgentInput, ImportPreview, LogLine, Run, RunStep, Runner, Stats, SystemInfo, Workflow, WorkflowDefinition } from '../types'
+import type { Agent, AgentInput, ImportPreview, LogLine, Run, RunStep, Runner, Stats, SystemInfo, Workflow, WorkflowDefinition, WorkflowTemplate } from '../types'
 
 const TOKEN_KEY = 'iteam.token'
 
@@ -59,6 +59,7 @@ export const api = {
   previewImport: (content: string) => request<ImportPreview>('POST', '/workflows/preview', { content }),
   importWorkflow: (content: string, run: boolean, inputs?: Record<string, string>) =>
     request<{ workflow: Workflow; createdAgents: Array<{ id: string; name: string; defaulted: boolean }>; run: Run | null }>('POST', '/workflows/import', { content, run, inputs }),
+  templates: () => request<WorkflowTemplate[]>('GET', '/templates'),
   exportWorkflow: (id: string, format: 'yaml' | 'json') => request<string>('GET', `/workflows/${id}/export?format=${format}`, undefined, true),
 
   runs: (params: { status?: string; workflowId?: string; limit?: number } = {}) => {

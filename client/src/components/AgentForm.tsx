@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
+import { AGENT_PRESETS } from '../lib/presets'
 import type { Agent, AgentInput, Effort, Location, Provider, Runner } from '../types'
 import { ErrorBanner, Field, Modal, Toggle } from './ui'
 
@@ -113,6 +114,24 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
     >
       <ErrorBanner message={error} onClose={() => setError(null)} />
       <div className="space-y-4">
+        {!agent && (
+          <select
+            className="select"
+            value=""
+            onChange={(e) => {
+              const preset = AGENT_PRESETS.find((p) => p.id === e.target.value)
+              if (!preset) return
+              update({ name: form.name || t(preset.nameKey), role: t(preset.roleKey), provider: preset.provider, model: preset.model, effort: preset.effort })
+            }}
+          >
+            <option value="">{t('agents.form.presetNone')}</option>
+            {AGENT_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {t('agents.form.preset')}: {t(p.nameKey)}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('agents.form.name')} required>
             <input className="input" value={form.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. 架构师 / Reviewer" autoFocus />

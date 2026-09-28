@@ -179,3 +179,14 @@ export interface ImportPreview {
   agents?: Array<{ name: string; status: 'existing' | 'create' | 'create-default' }>
   stages?: string[][]
 }
+
+export interface WorkflowTemplate {
+  id: string
+  name: string
+  description: string
+  steps: number
+  stages: number
+  agents: string[]
+  inputs: string[]
+  content: string
+}

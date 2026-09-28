@@ -2,7 +2,7 @@ import { FileUp } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
-import type { ImportPreview, Run, Workflow } from '../types'
+import type { ImportPreview, Run, Workflow, WorkflowTemplate } from '../types'
 import { ErrorBanner, Modal } from './ui'
 
 const FORMAT_DOC = 'https://github.com/ULis3h/iteam/blob/master/docs/workflow-format.md'
@@ -13,6 +13,7 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -20,6 +21,7 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
       setContent('')
       setPreview(null)
       setError(null)
+      api.templates().then(setTemplates).catch(() => setTemplates([]))
     }
   }, [open])
 
@@ -73,6 +75,28 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
     >
       <ErrorBanner message={error} onClose={() => setError(null)} />
       <p className="text-[13px] text-ink-soft mb-3">{t('import.desc')}</p>
+      {templates.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="label !mb-0">{t('import.templates')}</span>
+            <span className="text-[11px] text-ink-muted">{t('import.templates.hint')}</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {templates.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => setContent(tpl.content)}
+                className={`text-left rounded-xl border p-3 bg-white hover:border-ink transition ${content === tpl.content ? 'border-ink' : 'border-line'}`}
+              >
+                <div className="font-medium text-[13px] truncate">{tpl.name}</div>
+                <div className="text-[11px] text-ink-soft line-clamp-2 mt-0.5 min-h-[2.4em]">{tpl.description || '—'}</div>
+                <div className="text-[11px] text-ink-muted mt-1.5">{t('import.templates.stats', { steps: tpl.steps, stages: tpl.stages, agents: tpl.agents.length })}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-[1fr_300px]">
         <div>
           <div className="flex items-center justify-between mb-1.5">
