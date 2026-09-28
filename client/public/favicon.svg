@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aa2ff"/><stop offset="0.5" stop-color="#b48cff"/><stop offset="1" stop-color="#ffb08a"/></linearGradient></defs><rect x="6" y="6" width="52" height="52" rx="16" fill="url(#g)"/><circle cx="22" cy="24" r="6" fill="#fff"/><circle cx="42" cy="24" r="6" fill="#fff"/><circle cx="32" cy="42" r="6" fill="#fff"/><path d="M22 24 L32 42 L42 24" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="iteam-favicon-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6190ff"/>
+      <stop offset="1" stop-color="#2d5be4"/>
+    </linearGradient>
+  </defs>
+  <path d="M41.6 0c7.84 0 11.76 0 14.76 1.53a14 14 0 0 1 6.12 6.12c1.53 2.99 1.53 6.92 1.53 14.76V41.6c0 7.84 0 11.76 -1.53 14.76a14 14 0 0 1 -6.12 6.12c-2.99 1.53 -6.92 1.53 -14.76 1.53H22.4c-7.84 0 -11.76 0 -14.76 -1.53a14 14 0 0 1 -6.12 -6.12c-1.53 -2.99 -1.53 -6.92 -1.53 -14.76V22.4c0 -7.84 0 -11.76 1.53 -14.76a14 14 0 0 1 6.12 -6.12c2.99 -1.53 6.92 -1.53 14.76 -1.53Z" fill="url(#iteam-favicon-bg)"/>
+  <path d="M19.3 24.34A1.5 1.5 0 0 0 20.79 23.96L24.96 19.79A1.5 1.5 0 0 0 25.34 18.3A8 8 0 1 1 40.89 17.35A1.5 1.5 0 0 0 41.44 18.78L57.11 31.01A1.25 1.25 0 0 1 57.11 32.99L41.44 45.22A1.5 1.5 0 0 0 40.89 46.65A8 8 0 1 1 25.34 45.7A1.5 1.5 0 0 0 24.96 44.21L20.79 40.04A1.5 1.5 0 0 0 19.3 39.66A8 8 0 1 1 19.3 24.34ZM48.62 32L37.39 23.23A0.75 0.75 0 0 0 36.59 23.15A8 8 0 0 1 30.31 23.54A0.75 0.75 0 0 0 29.53 23.71L24.71 28.53A0.75 0.75 0 0 0 24.54 29.31A8 8 0 0 1 24.54 34.69A0.75 0.75 0 0 0 24.71 35.47L29.53 40.29A0.75 0.75 0 0 0 30.31 40.46A8 8 0 0 1 36.59 40.85A0.75 0.75 0 0 0 37.39 40.77Z" fill="#fff" fill-rule="evenodd"/>
+</svg>

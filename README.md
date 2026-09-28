@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/images/logo-banner.png" alt="iTeam" width="420">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-banner-dark.png">
+    <img src="docs/images/logo-banner.png" alt="iTeam" width="480">
+  </picture>
 </p>
 
 <p align="center">

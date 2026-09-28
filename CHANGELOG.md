@@ -26,6 +26,7 @@ All notable changes to iTeam are recorded here. The format follows [Keep a Chang
 - Workflow settings (cost limit) were not persisted when a workflow was created or updated through the API and were returned as a raw string.
 
 ### Changed
+- New app icon: a blue tile with a fork-and-merge pipeline mark, with a small-size favicon, PNG fallbacks (32, 180, 192, 512) and light/dark README banners (`docs/images/logo.svg` is the source).
 - Codex agents without auto-approve now run with `--sandbox workspace-write` instead of `--full-auto`.
 - Package versions are aligned with the changelog (1.2.0).
 

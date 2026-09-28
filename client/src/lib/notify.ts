@@ -27,7 +27,7 @@ export const disableNotifications = () => storage.remove(KEY)
 export function showNotification(title: string, body: string, tag: string, onClick?: () => void) {
   if (!notificationsEnabled()) return
   try {
-    const n = new Notification(title, { body, tag, icon: '/favicon.svg' })
+    const n = new Notification(title, { body, tag, icon: '/icon-192.png' })
     n.onclick = () => {
       window.focus()
       onClick?.()
