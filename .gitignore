@@ -28,3 +28,8 @@ tmp/
 .claude/
 .agent/
 _bmad/
+
+# SQLite side files (WAL mode)
+*.db-wal
+*.db-shm
+*.db-journal
