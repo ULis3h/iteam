@@ -1,0 +1,21 @@
+services:
+  iteam:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Optional: require a token for the web UI and runners
+      ITEAM_TOKEN: ${ITEAM_TOKEN:-}
+      ITEAM_MAX_PARALLEL: ${ITEAM_MAX_PARALLEL:-4}
+      # Credentials for the agent CLIs inside the container
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - iteam-data:/data
+      # Mount the repositories your agents should work on
+      - ./workspace:/workspace
+    restart: unless-stopped
+
+volumes:
+  iteam-data:
