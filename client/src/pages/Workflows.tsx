@@ -49,13 +49,17 @@ export function WorkflowsPage() {
   }
 
   const exportYaml = async (w: Workflow) => {
-    const text = await api.exportWorkflow(w.id, 'yaml')
-    const blob = new Blob([text], { type: 'text/yaml' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${w.name.replace(/[\\/:*?"<>|]+/g, '-')}.yaml`
-    a.click()
-    URL.revokeObjectURL(a.href)
+    try {
+      const text = await api.exportWorkflow(w.id, 'yaml')
+      const blob = new Blob([text], { type: 'text/yaml' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${w.name.replace(/[\\/:*?"<>|]+/g, '-')}.yaml`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (err) {
+      setError((err as Error).message)
+    }
   }
 
   return (
@@ -111,7 +115,9 @@ export function WorkflowsPage() {
               <div className="mt-3 flex items-center justify-between text-[12px] text-ink-muted">
                 <div className="flex items-center gap-3">
                   <span>{t('workflows.stepsCount', { n: w.steps.length })}</span>
-                  <span>{t('workflows.runsCount', { n: w.runCount ?? 0 })}</span>
+                  <Link to={`/runs?workflowId=${w.id}`} className="hover:text-ink underline-offset-2 hover:underline">
+                    {t('workflows.runsCount', { n: w.runCount ?? 0 })}
+                  </Link>
                   {w.lastRun ? (
                     <Link to={`/runs/${w.lastRun.id}`} className="inline-flex items-center gap-1.5 hover:text-ink">
                       <StatusBadge status={w.lastRun.status} small /> {relativeTime(w.lastRun.createdAt, locale)}

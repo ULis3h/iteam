@@ -18,6 +18,7 @@ model Runner {
   version      String   @default("")
   status       String   @default("offline") // online | offline
   capabilities String   @default("[]")      // JSON string[]: providers available on that machine
+  maxJobs      Int      @default(2)         // concurrent jobs the runner accepts (from its --max-jobs)
   lastSeen     DateTime @default(now())
   createdAt    DateTime @default(now())
 

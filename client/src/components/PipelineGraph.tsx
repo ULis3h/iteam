@@ -27,7 +27,7 @@ export function PipelineGraph({ nodes, selectedId, onSelect, compact }: { nodes:
 
   return (
     <div className="overflow-auto">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block" style={{ maxWidth: '100%', height: 'auto', maxHeight: compact ? 220 : undefined }}>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block" style={compact ? { maxWidth: '100%', height: 'auto', maxHeight: 220 } : undefined}>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#c4c7cf" />
@@ -64,8 +64,19 @@ export function PipelineGraph({ nodes, selectedId, onSelect, compact }: { nodes:
               key={n.id}
               transform={`translate(${n.x + PAD}, ${n.y + PAD})`}
               onClick={() => onSelect?.(n.id)}
-              style={{ cursor: onSelect ? 'pointer' : 'default' }}
+              onKeyDown={(e) => {
+                if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault()
+                  onSelect(n.id)
+                }
+              }}
+              tabIndex={onSelect ? 0 : undefined}
+              role={onSelect ? 'button' : undefined}
+              aria-label={`${node.name} · ${node.agentName}${status ? ` · ${status}` : ''}`}
+              style={{ cursor: onSelect ? 'pointer' : 'default', outline: 'none' }}
+              className={onSelect ? 'focus-visible:[&>rect:first-of-type]:stroke-accent' : undefined}
             >
+              <title>{`${node.name}\n${node.agentName}${node.meta ? ` · ${node.meta}` : ''}${status ? `\n${status}` : ''}`}</title>
               <rect
                 width={NODE_W}
                 height={NODE_H}

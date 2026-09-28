@@ -1,9 +1,10 @@
 import { ArrowLeft, ChevronDown, ChevronUp, Play, Plus, Trash2 } from 'lucide-react'
+import { useDirty } from '../lib/dirty'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PipelineGraph } from '../components/PipelineGraph'
 import { RunDialog } from '../components/RunDialog'
-import { Card, ErrorBanner, Field, Spinner, Toggle } from '../components/ui'
+import { Card, ErrorBanner, Field, InfoBanner, Spinner, Toggle } from '../components/ui'
 import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { layoutDag } from '../lib/dag'
@@ -33,6 +34,11 @@ export function WorkflowEditorPage() {
   const [saving, setSaving] = useState(false)
   const [runTarget, setRunTarget] = useState<Workflow | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [notFound, setNotFound] = useState(false)
+  const [warnings, setWarnings] = useState<string[]>([])
+  // stable React keys for step cards (step ids are user-editable)
+  const [uids, setUids] = useState<string[]>([])
+  const dirtyGuard = useDirty()
 
   useEffect(() => {
     api.agents().then(setAgents).catch((e) => setError(e.message))
@@ -41,11 +47,18 @@ export function WorkflowEditorPage() {
       .workflow(id)
       .then((w) => {
         setDef({ name: w.name, description: w.description, inputs: w.inputs, steps: w.steps })
+        setUids(w.steps.map(() => crypto.randomUUID()))
         setExpanded(Object.fromEntries(w.steps.map((s) => [s.id, true])))
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => (e.status === 404 ? setNotFound(true) : setError(e.message)))
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    dirtyGuard.setDirty(dirty)
+    return () => dirtyGuard.setDirty(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty])
 
   const update = useCallback((patch: Partial<WorkflowDefinition>) => {
     setDef((d) => ({ ...d, ...patch }))
@@ -54,30 +67,43 @@ export function WorkflowEditorPage() {
 
   const updateStep = (stepId: string, patch: Partial<WorkflowStep>) => {
     const renamed = patch.id && patch.id !== stepId ? patch.id : null
+    const ref = renamed ? new RegExp(`\\{\\{(\\s*)steps\\.${stepId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`, 'g') : null
+    const rewrite = (text?: string) => (ref && text ? text.replace(ref, `{{$1steps.${renamed}.`) : text)
     update({
       steps: def.steps.map((s) => {
         const next = s.id === stepId ? { ...s, ...patch } : s
-        // keep dependency references in sync when a step id changes
-        return renamed ? { ...next, dependsOn: next.dependsOn.map((d) => (d === stepId ? renamed : d)) } : next
+        if (!renamed) return next
+        // keep dependency references and {{steps.<id>.output}} mentions in sync when a step id changes
+        return { ...next, dependsOn: next.dependsOn.map((d) => (d === stepId ? renamed : d)), prompt: rewrite(next.prompt) ?? next.prompt, expectedOutput: rewrite(next.expectedOutput) }
       }),
     })
+    if (renamed) setExpanded((e) => ({ ...e, [renamed]: e[stepId] !== false }))
   }
 
   const addStep = () => {
     const step = newStep(def.steps.map((s) => s.id), agents[0]?.id ?? '', def.steps.length + 1)
     update({ steps: [...def.steps, step] })
+    setUids((u) => [...u, crypto.randomUUID()])
     setExpanded((e) => ({ ...e, [step.id]: true }))
   }
 
-  const removeStep = (stepId: string) =>
-    update({ steps: def.steps.filter((s) => s.id !== stepId).map((s) => ({ ...s, dependsOn: s.dependsOn.filter((d) => d !== stepId) })) })
+  const removeStep = (index: number) => {
+    const stepId = def.steps[index].id
+    update({ steps: def.steps.filter((_, i) => i !== index).map((s) => ({ ...s, dependsOn: s.dependsOn.filter((d) => d !== stepId) })) })
+    setUids((u) => u.filter((_, i) => i !== index))
+  }
 
   const moveStep = (index: number, dir: -1 | 1) => {
-    const steps = [...def.steps]
     const target = index + dir
-    if (target < 0 || target >= steps.length) return
+    if (target < 0 || target >= def.steps.length) return
+    const steps = [...def.steps]
     ;[steps[index], steps[target]] = [steps[target], steps[index]]
     update({ steps })
+    setUids((u) => {
+      const next = [...u]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
   }
 
   const validate = (): string | null => {
@@ -106,6 +132,8 @@ export function WorkflowEditorPage() {
       }
       const saved = id ? await api.updateWorkflow(id, payload) : await api.createWorkflow(payload)
       setDirty(false)
+      dirtyGuard.setDirty(false)
+      api.validateWorkflow(payload).then((v) => setWarnings(v.warnings ?? [])).catch(() => undefined)
       if (!id) navigate(`/workflows/${saved.id}`, { replace: true })
       return saved
     } catch (err) {
@@ -126,10 +154,20 @@ export function WorkflowEditorPage() {
       </div>
     )
   }
+  if (notFound) {
+    return (
+      <div>
+        <Link to="/workflows" className="inline-flex items-center gap-1 text-[13px] text-ink-soft hover:text-ink mb-3">
+          <ArrowLeft size={14} /> {t('nav.workflows')}
+        </Link>
+        <Card className="p-10 text-center text-[14px]">{t('editor.notFound')}</Card>
+      </div>
+    )
+  }
 
   return (
     <div>
-      <Link to="/workflows" className="inline-flex items-center gap-1 text-[13px] text-ink-soft hover:text-ink mb-3">
+      <Link to="/workflows" onClick={(e) => !dirtyGuard.confirmLeave() && e.preventDefault()} className="inline-flex items-center gap-1 text-[13px] text-ink-soft hover:text-ink mb-3">
         <ArrowLeft size={14} /> {t('nav.workflows')}
       </Link>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
@@ -154,6 +192,24 @@ export function WorkflowEditorPage() {
         </div>
       </div>
       <ErrorBanner message={error} onClose={() => setError(null)} />
+      {agents.length === 0 && (
+        <InfoBanner tone="warn">
+          {t('editor.noAgents')}{' '}
+          <Link to="/agents" className="underline underline-offset-2 font-medium">
+            {t('overview.addAgent')}
+          </Link>
+        </InfoBanner>
+      )}
+      {warnings.length > 0 && (
+        <InfoBanner tone="warn">
+          <div className="font-medium mb-1">{t('editor.warnings')}</div>
+          <ul className="list-disc pl-5 space-y-0.5">
+            {warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </InfoBanner>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <div className="space-y-5">
@@ -178,7 +234,7 @@ export function WorkflowEditorPage() {
             {def.inputs.length > 0 && (
               <div className="space-y-2">
                 {def.inputs.map((input, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-2 items-center">
+                  <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto] gap-2 items-center">
                     <input className="input mono" placeholder={t('editor.inputs.key')} value={input.key} onChange={(e) => update({ inputs: def.inputs.map((x, j) => (j === i ? { ...x, key: e.target.value.replace(/[^\w-]/g, '') } : x)) })} />
                     <input className="input" placeholder={t('editor.inputs.label')} value={input.label ?? ''} onChange={(e) => update({ inputs: def.inputs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
                     <input className="input" placeholder={t('editor.inputs.default')} value={input.default ?? ''} onChange={(e) => update({ inputs: def.inputs.map((x, j) => (j === i ? { ...x, default: e.target.value } : x)) })} />
@@ -203,7 +259,7 @@ export function WorkflowEditorPage() {
             <div className="space-y-3">
               {def.steps.map((step, index) => (
                 <StepCard
-                  key={step.id}
+                  key={uids[index] ?? step.id}
                   index={index}
                   step={step}
                   steps={def.steps}
@@ -213,7 +269,7 @@ export function WorkflowEditorPage() {
                   expanded={expanded[step.id] !== false}
                   onToggle={() => setExpanded((e) => ({ ...e, [step.id]: e[step.id] === false }))}
                   onChange={(patch) => updateStep(step.id, patch)}
-                  onRemove={() => removeStep(step.id)}
+                  onRemove={() => removeStep(index)}
                   onMove={(dir) => moveStep(index, dir)}
                 />
               ))}
@@ -345,15 +401,17 @@ function StepCard({
       </div>
       {expanded && (
         <div className="px-4 pb-4 pt-1 space-y-3 border-t border-line">
-          <div className="grid grid-cols-[1fr_180px_1fr] gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_1fr] gap-3">
             <Field label={t('editor.step.name')} required>
               <input
                 className="input"
                 value={step.name}
-                onChange={(e) => {
-                  const name = e.target.value
-                  const auto = !step.name || step.id === ensureId(slugify(step.name), []) || /^step-\d+$/.test(step.id)
-                  onChange(auto && name.trim() && slugify(name) !== 'step' ? { name, id: ensureId(slugify(name), others.map((s) => s.id)) } : { name })
+                onChange={(e) => onChange({ name: e.target.value })}
+                onBlur={() => {
+                  // derive a readable id from the name once, while the id is still the generated default
+                  if (/^step-\d+$/.test(step.id) && step.name.trim() && slugify(step.name) !== 'step') {
+                    onChange({ id: ensureId(slugify(step.name), others.map((s) => s.id)) })
+                  }
                 }}
               />
             </Field>

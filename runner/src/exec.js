@@ -59,14 +59,17 @@ const substitute = (value, files, shell) => {
   return fill(fill(value, 'promptFile', q(files.promptFile)), 'outputFile', q(files.outputFile))
 }
 
-/** Environment for agent processes: the runner's own credentials are removed. */
+const PROTECTED_ENV = /^(PATH|NODE_OPTIONS|HOME|SHELL|LD_[A-Z_]+|DYLD_[A-Z_]+|ITEAM_[A-Z_]+|DATABASE_URL)$/
+
+/** Environment for agent processes: the runner's own credentials are removed and loader variables cannot be overridden. */
 const childEnv = (extra) => {
   const env = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined || k.startsWith('ITEAM_')) continue
     env[k] = v
   }
-  return { ...env, ...(extra ?? {}) }
+  for (const [k, v] of Object.entries(extra ?? {})) if (!PROTECTED_ENV.test(k)) env[k] = String(v)
+  return env
 }
 
 const spawnSpec = (cmd, args, shell) => {
@@ -186,7 +189,13 @@ export function runJob(job, handlers) {
     }
   }
 
-  start()
+  start().catch((err) => {
+    // setup failures (temp dir, disk) must never take the runner process down
+    if (!finished) {
+      finished = true
+      handlers.onDone({ exitCode: null, output: '', error: `job setup failed: ${err.message}` })
+    }
+  })
 
   return {
     cancel: () => {

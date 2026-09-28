@@ -1,5 +1,7 @@
 import { Bot, LayoutGrid, ListChecks, Settings, Workflow } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { useDirty } from '../lib/dirty'
+import { useConnectionState } from '../lib/socket'
 import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
 import { AuroraBackground } from './AuroraBackground'
@@ -8,6 +10,11 @@ import { Logo } from './Logo'
 export function Layout() {
   const { t, locale, setLocale } = useT()
   const { system } = useApp()
+  const { confirmLeave } = useDirty()
+  const connected = useConnectionState()
+  const guard = (e: React.MouseEvent) => {
+    if (!confirmLeave()) e.preventDefault()
+  }
   const nav = [
     { to: '/', label: t('nav.overview'), icon: LayoutGrid, end: true },
     { to: '/agents', label: t('nav.agents'), icon: Bot },
@@ -30,7 +37,7 @@ export function Layout() {
           </div>
           <nav className="space-y-1">
             {nav.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink key={item.to} to={item.to} end={item.end} onClick={guard} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                 <item.icon size={17} />
                 {item.label}
               </NavLink>
@@ -48,12 +55,17 @@ export function Layout() {
           <header className="md:hidden sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-line px-4 py-2.5 flex items-center gap-3 overflow-x-auto">
             <Logo size={24} />
             {nav.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `text-[13px] whitespace-nowrap px-2.5 h-8 inline-flex items-center rounded-full ${isActive ? 'bg-ink text-white' : 'text-ink-soft'}`}>
+              <NavLink key={item.to} to={item.to} end={item.end} onClick={guard} className={({ isActive }) => `text-[13px] whitespace-nowrap px-2.5 h-8 inline-flex items-center rounded-full ${isActive ? 'bg-ink text-white' : 'text-ink-soft'}`}>
                 {item.label}
               </NavLink>
             ))}
           </header>
           <main className="max-w-[1180px] mx-auto px-4 md:px-8 py-6 md:py-8">
+            {!connected && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 text-[#8f5a00] px-4 py-2 text-[13px] fade-in" role="status">
+                {t('app.reconnecting')}
+              </div>
+            )}
             <Outlet />
           </main>
         </div>

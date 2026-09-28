@@ -1,5 +1,5 @@
-import { ArrowLeft, MessageSquarePlus, RotateCcw, Square, Trash2, Play } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ArrowLeft, Copy, Download, Maximize2, MessageSquarePlus, RotateCcw, Square, Trash2, Play } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LogViewer } from '../components/LogViewer'
 import { PipelineGraph } from '../components/PipelineGraph'
@@ -7,9 +7,9 @@ import { RoadmapTimeline } from '../components/RoadmapTimeline'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, ErrorBanner, Field, Modal, Spinner } from '../components/ui'
 import { api } from '../lib/api'
-import { formatDuration, formatTime } from '../lib/format'
+import { copyText, formatDuration, formatTime } from '../lib/format'
 import { useT } from '../lib/i18n'
-import { getSocket, useSocketEvent } from '../lib/socket'
+import { subscribeRun, useReconnect, useSocketEvent } from '../lib/socket'
 import type { LogLine, Run, RunStep } from '../types'
 
 type Tab = 'pipeline' | 'roadmap' | 'logs'
@@ -25,25 +25,42 @@ export function RunDetailPage() {
   const [logStep, setLogStep] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
+  const seen = useRef(new Set<string>())
+  const pendingSteps = useRef<RunStep[]>([])
+  const loaded = useRef(false)
+  const detailRef = useRef<HTMLDivElement>(null)
+
+  const mergeStep = (prev: Run, step: RunStep): Run => ({ ...prev, steps: prev.steps?.map((s) => (s.id === step.id ? { ...s, ...step } : s)) })
 
   const load = useCallback(async () => {
     try {
       const [r, l] = await Promise.all([api.run(id), api.runLogs(id)])
-      setRun(r)
-      setLogs(l)
+      // apply step events that arrived while the snapshot was in flight
+      let merged = r
+      for (const step of pendingSteps.current) merged = mergeStep(merged, step)
+      pendingSteps.current = []
+      loaded.current = true
+      setRun(merged)
+      setLogs((prev) => {
+        const keys = new Set(l.map((x) => `${x.stepId}:${x.seq}`))
+        const extra = prev.filter((x) => !keys.has(`${x.stepId}:${x.seq}`))
+        const all = [...l, ...extra].sort((a, b) => (a.stepId === b.stepId ? a.seq - b.seq : 0))
+        seen.current = new Set(all.map((x) => `${x.stepId}:${x.seq}`))
+        return all
+      })
     } catch (err) {
       setError((err as Error).message)
     }
   }, [id])
 
   useEffect(() => {
+    loaded.current = false
+    seen.current = new Set()
+    const unsubscribe = subscribeRun(id)
     void load()
-    const s = getSocket()
-    s.emit('run:subscribe', id)
-    return () => {
-      s.emit('run:unsubscribe', id)
-    }
+    return unsubscribe
   }, [id, load])
+  useReconnect(load)
 
   useSocketEvent(
     'run:changed',
@@ -57,7 +74,11 @@ export function RunDetailPage() {
     useCallback((payload: unknown) => {
       const step = payload as RunStep
       if (step.runId !== id) return
-      setRun((prev) => (prev ? { ...prev, steps: prev.steps?.map((s) => (s.id === step.id ? { ...s, ...step } : s)) } : prev))
+      if (!loaded.current) {
+        pendingSteps.current.push(step)
+        return
+      }
+      setRun((prev) => (prev ? mergeStep(prev, step) : prev))
     }, [id]),
   )
   useSocketEvent(
@@ -65,8 +86,18 @@ export function RunDetailPage() {
     useCallback((payload: unknown) => {
       const line = payload as LogLine
       if (line.runId !== id) return
-      setLogs((prev) => (prev.some((l) => l.stepId === line.stepId && l.seq === line.seq) ? prev : [...prev, line]))
+      const key = `${line.stepId}:${line.seq}`
+      if (seen.current.has(key)) return
+      seen.current.add(key)
+      setLogs((prev) => [...prev, line])
     }, [id]),
+  )
+  useSocketEvent(
+    'run:deleted',
+    useCallback((payload: unknown) => {
+      const p = payload as { id: string }
+      if (p.id === id) navigate('/runs')
+    }, [id, navigate]),
   )
 
   const active = run?.status === 'running' || run?.status === 'queued'
@@ -145,8 +176,22 @@ export function RunDetailPage() {
               </button>
               <button
                 className="btn-ghost"
+                title={t('runDetail.downloadRun')}
                 onClick={() => {
-                  if (confirm(t('common.confirmDelete', { name: run.name }))) void api.deleteRun(run.id).then(() => navigate('/runs'))
+                  const blob = new Blob([JSON.stringify({ ...run, logs }, null, 2)], { type: 'application/json' })
+                  const a = document.createElement('a')
+                  a.href = URL.createObjectURL(blob)
+                  a.download = `run-${run.id.slice(0, 8)}.json`
+                  a.click()
+                  URL.revokeObjectURL(a.href)
+                }}
+              >
+                <Download size={14} />
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  if (confirm(t('common.confirmDelete', { name: run.name }))) api.deleteRun(run.id).then(() => navigate('/runs')).catch((e) => setError(e.message))
                 }}
               >
                 <Trash2 size={14} /> {t('runDetail.delete')}
@@ -186,11 +231,15 @@ export function RunDetailPage() {
               selectedId={selectedStep?.key ?? null}
               onSelect={(key) => {
                 const step = steps.find((s) => s.key === key)
-                if (step) setSelected(step.id)
+                if (step) {
+                  setSelected(step.id)
+                  requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+                }
               }}
             />
           </Card>
           <Card className="p-5 min-h-[160px]">
+            <div ref={detailRef} />
             {selectedStep ? (
               <StepDetail
                 step={selectedStep}
@@ -225,6 +274,39 @@ export function RunDetailPage() {
           <LogViewer logs={logs} steps={steps} stepId={logStep} onStepChange={setLogStep} />
         </Card>
       )}
+    </div>
+  )
+}
+
+function TextBlock({ label, text, tone }: { label: string; text: string; tone?: 'error' }) {
+  const { t } = useT()
+  const [expanded, setExpanded] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const cls = tone === 'error' ? 'bg-red-50 text-status-failed' : 'bg-[#f7f7f9]'
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <div className="label !mb-0">{label}</div>
+        <div className="flex gap-1">
+          <button
+            className="btn-ghost btn-sm !px-2"
+            title={t('runDetail.copy')}
+            onClick={async () => {
+              setCopied(await copyText(text))
+              setTimeout(() => setCopied(false), 1500)
+            }}
+          >
+            <Copy size={13} /> {copied ? t('common.copied') : ''}
+          </button>
+          <button className="btn-ghost btn-sm !px-2" title={t('runDetail.expand')} onClick={() => setExpanded(true)}>
+            <Maximize2 size={13} />
+          </button>
+        </div>
+      </div>
+      <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-3 max-h-64 overflow-auto ${cls}`}>{text}</pre>
+      <Modal open={expanded} onClose={() => setExpanded(false)} title={label} wide>
+        <pre className={`mono whitespace-pre-wrap break-words rounded-xl p-4 ${cls}`}>{text}</pre>
+      </Modal>
     </div>
   )
 }
@@ -277,24 +359,14 @@ function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: num
           </>
         )}
       </dl>
-      {step.error && (
-        <div>
-          <div className="label">{t('runDetail.error')}</div>
-          <pre className="mono whitespace-pre-wrap break-words rounded-xl bg-red-50 text-status-failed p-3 max-h-40 overflow-auto">{step.error}</pre>
-        </div>
-      )}
-      {step.output && (
-        <div>
-          <div className="label">{t('runDetail.output')}</div>
-          <pre className="mono whitespace-pre-wrap break-words rounded-xl bg-[#f7f7f9] p-3 max-h-64 overflow-auto">{step.output}</pre>
-        </div>
-      )}
+      {step.error && <TextBlock label={t('runDetail.error')} text={step.error} tone="error" />}
+      {step.output && <TextBlock label={t('runDetail.output')} text={step.output} />}
       {step.prompt && (
         <div>
           <button className="label !mb-1 underline underline-offset-2 hover:text-ink" onClick={() => setShowPrompt((v) => !v)}>
             {showPrompt ? '−' : '+'} {t('runDetail.prompt')}
           </button>
-          {showPrompt && <pre className="mono whitespace-pre-wrap break-words rounded-xl bg-[#f7f7f9] p-3 max-h-64 overflow-auto">{step.prompt}</pre>}
+          {showPrompt && <TextBlock label={t('runDetail.prompt')} text={step.prompt} />}
         </div>
       )}
       <div className="flex gap-2">

@@ -54,6 +54,9 @@ export class TailBuffer {
   }
 }
 
+/** Variables an agent's env map may not override (they change how the CLI itself is loaded). */
+export const PROTECTED_ENV = /^(PATH|NODE_OPTIONS|HOME|SHELL|LD_[A-Z_]+|DYLD_[A-Z_]+|ITEAM_[A-Z_]+|DATABASE_URL)$/
+
 /** Environment handed to agent processes: the orchestrator's own secrets are removed. */
 export const childEnv = (extra: Record<string, string>): Record<string, string> => {
   const env: Record<string, string> = {}
@@ -62,7 +65,8 @@ export const childEnv = (extra: Record<string, string>): Record<string, string> 
     if (k.startsWith('ITEAM_') || k === 'DATABASE_URL') continue
     env[k] = v
   }
-  return { ...env, ...extra }
+  for (const [k, v] of Object.entries(extra)) if (!PROTECTED_ENV.test(k)) env[k] = v
+  return env
 }
 
 const fill = (text: string, name: string, value: string) => text.replace(new RegExp(`\\{\\{\\s*${name}\\s*\\}\\}`, 'g'), () => value)
@@ -193,7 +197,12 @@ export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
     }
   }
 
-  void start()
+  void start().catch((err: Error) => {
+    if (!finished) {
+      finished = true
+      handlers.onDone({ exitCode: null, output: '', error: `job setup failed: ${err.message}` })
+    }
+  })
 
   return {
     cancel: () => {

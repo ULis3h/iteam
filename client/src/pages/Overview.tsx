@@ -1,12 +1,12 @@
 import { ArrowRight, Play, Plus, Upload } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, ErrorBanner, PageHeader } from '../components/ui'
 import { api } from '../lib/api'
 import { formatDuration, relativeTime } from '../lib/format'
 import { useT } from '../lib/i18n'
-import { useSocketEvent } from '../lib/socket'
+import { useReconnect, useSocketEvent } from '../lib/socket'
 import type { Agent, Run, Stats } from '../types'
 
 export function OverviewPage() {
@@ -35,7 +35,27 @@ export function OverviewPage() {
   useEffect(() => {
     void load()
   }, [load])
-  useSocketEvent(['run:changed', 'agent:changed', 'agent:deleted', 'runner:changed', 'workflow:changed'], load)
+  useSocketEvent(['run:changed', 'agent:changed', 'agent:deleted', 'runner:changed', 'workflow:changed', 'run:deleted'], load)
+  useReconnect(load)
+  // step events are frequent: refresh at most once a second
+  const throttle = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useSocketEvent(
+    'step:changed',
+    useCallback(() => {
+      if (throttle.current) return
+      throttle.current = setTimeout(() => {
+        throttle.current = null
+        void load()
+      }, 1000)
+    }, [load]),
+  )
+  const [now, setNow] = useState(Date.now())
+  const live = runs.some((r) => r.status === 'running' || r.status === 'queued')
+  useEffect(() => {
+    if (!live) return
+    const h = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(h)
+  }, [live])
 
   const quickRun = async () => {
     setBusy(true)
@@ -139,7 +159,7 @@ export function OverviewPage() {
                     {t('runs.progress', { done, total: r.steps?.length ?? 0 })} · {relativeTime(r.createdAt, locale)}
                   </div>
                 </div>
-                <span className="text-[12px] text-ink-soft font-mono">{formatDuration(r.startedAt, r.finishedAt)}</span>
+                <span className="text-[12px] text-ink-soft font-mono">{formatDuration(r.startedAt, r.finishedAt, now)}</span>
               </Link>
             )
           })}

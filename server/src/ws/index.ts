@@ -57,21 +57,30 @@ export function setupSockets(io: Server, prisma: PrismaClient, registry: RunnerR
     const auth = socket.handshake.auth ?? {}
     const parsedName = runnerNameSchema.safeParse(auth.name)
     if (!parsedName.success) {
-      socket.emit('runner:error', { message: 'runner name is required (1-80 characters)', fatal: true })
+      socket.emit('runner:error', { code: 'bad-name', message: 'runner name is required (1-80 characters)', fatal: true })
       return socket.disconnect(true)
     }
     const name = parsedName.data
     const capabilities = Array.isArray(auth.capabilities) ? auth.capabilities.map(String).slice(0, 20) : []
+    const activeJobs = Array.isArray(auth.activeJobs) ? auth.activeJobs.map(String).slice(0, 100) : []
+    const maxJobs = Number.isInteger(auth.maxJobs) && auth.maxJobs > 0 ? Math.min(32, auth.maxJobs) : 2
     const meta = { hostname: String(auth.hostname ?? '').slice(0, 200), os: String(auth.os ?? '').slice(0, 200), arch: String(auth.arch ?? '').slice(0, 40), version: String(auth.version ?? '').slice(0, 40) }
-    const runner = await prisma.runner.upsert({
-      where: { name },
-      update: { status: 'online', ...meta, capabilities: JSON.stringify(capabilities), lastSeen: new Date() },
-      create: { name, status: 'online', ...meta, capabilities: JSON.stringify(capabilities) },
-    })
-    registry.attach(runner.id, socket)
-    socket.emit('runner:registered', { id: runner.id, name: runner.name })
+    let runner
+    try {
+      runner = await prisma.runner.upsert({
+        where: { name },
+        update: { status: 'online', ...meta, capabilities: JSON.stringify(capabilities), maxJobs, lastSeen: new Date() },
+        create: { name, status: 'online', ...meta, capabilities: JSON.stringify(capabilities), maxJobs },
+      })
+    } catch (err) {
+      log.error(`runner registration failed for ${name}: ${(err as Error).message}`)
+      socket.emit('runner:error', { code: 'registration-failed', message: 'registration failed on the server; retrying', fatal: false })
+      return socket.disconnect(true)
+    }
+    registry.attach(runner.id, socket, activeJobs, maxJobs)
+    socket.emit('runner:registered', { id: runner.id, name: runner.name, maxJobs })
     broadcast.all('runner:changed', serializeRunner(runner, true))
-    log.info(`runner online: ${runner.name} (${capabilities.filter((c) => c !== 'custom').join(', ') || 'no CLIs detected'})`)
+    log.info(`runner online: ${runner.name} (${capabilities.filter((c) => c !== 'custom').join(', ') || 'no CLIs detected'}; max ${maxJobs} jobs${activeJobs.length ? `; ${activeJobs.length} job(s) re-attached` : ''})`)
 
     socket.on('job:log', (data: unknown) => {
       const parsed = jobLogSchema.safeParse(data)

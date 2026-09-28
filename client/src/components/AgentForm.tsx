@@ -3,7 +3,7 @@ import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
 import { AGENT_PRESETS } from '../lib/presets'
 import type { Agent, AgentInput, Effort, Location, Provider, Runner } from '../types'
-import { ErrorBanner, Field, Modal, Toggle } from './ui'
+import { ErrorBanner, Field, InfoBanner, Modal, Toggle } from './ui'
 
 const empty: AgentInput = {
   name: '',
@@ -52,12 +52,16 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
   const [advanced, setAdvanced] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [timeoutText, setTimeoutText] = useState('1800')
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     const initial = agent ? toAgentInput(agent) : empty
     setForm(initial)
     setExtraArgsText(initial.extraArgs.join('\n'))
+    setTimeoutText(String(initial.timeoutSec))
+    setNotice(null)
     setEnvText(Object.entries(initial.env).map(([k, v]) => `${k}=${v}`).join('\n'))
     setAdvanced(!!(initial.workDir || initial.extraArgs.length || Object.keys(initial.env).length || !initial.autoApprove || initial.maxConcurrent > 1))
     setError(null)
@@ -83,8 +87,11 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
         if (idx <= 0) throw new Error(`invalid env line: ${trimmed}`)
         env[trimmed.slice(0, idx).trim()] = trimmed.slice(idx + 1)
       }
+      const timeoutSec = Number(timeoutText)
+      if (!Number.isInteger(timeoutSec) || timeoutSec < 30 || timeoutSec > 86400) throw new Error(`${t('agents.form.timeout')}: 30–86400`)
       await onSubmit({
         ...form,
+        timeoutSec,
         name: form.name.trim(),
         extraArgs: extraArgsText.split('\n').map((s) => s.trim()).filter(Boolean),
         env,
@@ -115,6 +122,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
       }
     >
       <ErrorBanner message={error} onClose={() => setError(null)} />
+      {notice && <InfoBanner>{notice}</InfoBanner>}
       <div className="space-y-4">
         {!agent && (
           <select
@@ -134,7 +142,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
             ))}
           </select>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label={t('agents.form.name')} required>
             <input className="input" value={form.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. 架构师 / Reviewer" autoFocus />
           </Field>
@@ -147,7 +155,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
           <textarea className="textarea" rows={3} value={form.role} onChange={(e) => update({ role: e.target.value })} placeholder={t('agents.form.rolePlaceholder')} />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label={t('agents.form.location')}>
             <div className="flex rounded-xl border border-line p-0.5 bg-white">
               {(['local', 'remote'] as Location[]).map((loc) => (
@@ -176,9 +184,20 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Field label={t('agents.form.provider')} hint={form.location === 'local' && !localCli ? t('agents.cliMissing') : undefined}>
-            <select className="select" value={form.provider} onChange={(e) => update({ provider: e.target.value as Provider })}>
+            <select
+              className="select"
+              value={form.provider}
+              onChange={(e) => {
+                const next = e.target.value as Provider
+                const nextModels = providers.find((p) => p.id === next)?.models ?? []
+                const prevModels = spec?.models ?? []
+                const keep = !form.model || nextModels.includes(form.model) || !prevModels.includes(form.model)
+                update({ provider: next, model: keep ? form.model : '' })
+                setNotice(keep ? null : t('agents.form.modelReset'))
+              }}
+            >
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -220,7 +239,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
             <Field label={t('agents.form.workDir')}>
               <input className="input mono" value={form.workDir} onChange={(e) => update({ workDir: e.target.value })} placeholder={t('agents.form.workDirPlaceholder')} />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label={t('agents.form.extraArgs')}>
                 <textarea className="textarea mono min-h-[64px]" rows={2} value={extraArgsText} onChange={(e) => setExtraArgsText(e.target.value)} placeholder={t('agents.form.extraArgsPlaceholder')} />
               </Field>
@@ -228,9 +247,9 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
                 <textarea className="textarea mono min-h-[64px]" rows={2} value={envText} onChange={(e) => setEnvText(e.target.value)} placeholder={t('agents.form.envPlaceholder')} />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label={t('agents.form.timeout')}>
-                <input className="input" type="number" min={30} value={form.timeoutSec} onChange={(e) => update({ timeoutSec: Number(e.target.value) || 1800 })} />
+                <input className="input" type="number" min={30} max={86400} value={timeoutText} onChange={(e) => setTimeoutText(e.target.value)} />
               </Field>
               <Field label={t('agents.form.maxConcurrent')} hint={t('agents.form.maxConcurrentHint')}>
                 <input className="input" type="number" min={1} max={16} value={form.maxConcurrent} onChange={(e) => update({ maxConcurrent: Math.max(1, Math.min(16, Number(e.target.value) || 1)) })} />

@@ -1,13 +1,13 @@
 import { Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, EmptyState, ErrorBanner, PageHeader } from '../components/ui'
 import { api } from '../lib/api'
 import { formatDuration, formatTime, statusColor } from '../lib/format'
 import { useT } from '../lib/i18n'
-import { useSocketEvent } from '../lib/socket'
-import type { Run, RunStatus } from '../types'
+import { useReconnect, useSocketEvent } from '../lib/socket'
+import type { Run, RunStatus, Workflow } from '../types'
 
 const FILTERS: Array<RunStatus | ''> = ['', 'running', 'succeeded', 'failed', 'cancelled']
 
@@ -15,19 +15,45 @@ export function RunsPage() {
   const { t, locale } = useT()
   const [runs, setRuns] = useState<Run[]>([])
   const [filter, setFilter] = useState<RunStatus | ''>('')
+  const [params, setParams] = useSearchParams()
+  const workflowId = params.get('workflowId') ?? ''
+  const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [query, setQuery] = useState('')
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const PAGE = 50
 
   const load = useCallback(async () => {
     try {
-      setRuns(await api.runs({ status: filter === 'running' ? 'running,queued' : filter || undefined, limit: 100 }))
+      const page = await api.runs({ status: filter === 'running' ? 'running,queued' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE })
+      setRuns(page)
+      setHasMore(page.length === PAGE)
     } catch (err) {
       setError((err as Error).message)
     }
-  }, [filter])
+  }, [filter, workflowId])
+  const loadMore = async () => {
+    const last = runs[runs.length - 1]
+    if (!last) return
+    try {
+      const page = await api.runs({ status: filter === 'running' ? 'running,queued' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE, before: last.createdAt })
+      setRuns((prev) => [...prev, ...page.filter((r) => !prev.some((p) => p.id === r.id))])
+      setHasMore(page.length === PAGE)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
   useEffect(() => {
     void load()
+    api.workflows().then(setWorkflows).catch(() => undefined)
   }, [load])
   useSocketEvent(['run:changed', 'step:changed', 'run:deleted'], load)
+  useReconnect(load)
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return q ? runs.filter((r) => r.name.toLowerCase().includes(q) || r.workflow?.name?.toLowerCase().includes(q)) : runs
+  }, [runs, query])
 
   const remove = async (run: Run) => {
     if (!confirm(t('common.confirmDelete', { name: run.name }))) return
@@ -55,11 +81,22 @@ export function RunsPage() {
         }
       />
       <ErrorBanner message={error} onClose={() => setError(null)} />
-      {runs.length === 0 ? (
+      <div className="flex flex-wrap gap-2 mb-4">
+        <select className="select w-auto min-w-[200px]" value={workflowId} onChange={(e) => setParams(e.target.value ? { workflowId: e.target.value } : {})}>
+          <option value="">{t('runs.filter.workflow')}: {t('common.all')}</option>
+          {workflows.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name}
+            </option>
+          ))}
+        </select>
+        <input className="input w-64" placeholder={t('runs.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
+      </div>
+      {visible.length === 0 ? (
         <EmptyState title={t('runs.empty')} />
       ) : (
         <Card className="divide-y divide-line fade-in">
-          {runs.map((run) => {
+          {visible.map((run) => {
             const steps = run.steps ?? []
             return (
               <div key={run.id} className="flex items-center gap-4 px-5 py-3 hover:bg-black/[0.02] first:rounded-t-2xl last:rounded-b-2xl">
@@ -84,6 +121,13 @@ export function RunsPage() {
             )
           })}
         </Card>
+      )}
+      {hasMore && !query && (
+        <div className="flex justify-center mt-4">
+          <button className="btn-secondary" onClick={loadMore}>
+            {t('runs.loadMore')}
+          </button>
+        </div>
       )}
     </div>
   )

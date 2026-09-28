@@ -15,5 +15,23 @@
   },
   "dependencies": {
     "socket.io-client": "^4.8.1"
-  }
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ULis3h/iteam.git",
+    "directory": "runner"
+  },
+  "keywords": [
+    "iteam",
+    "agent",
+    "runner",
+    "claude-code",
+    "codex",
+    "gemini"
+  ]
 }

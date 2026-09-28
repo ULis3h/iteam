@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import { useT } from '../lib/i18n'
 import type { ImportPreview, Run, Workflow, WorkflowTemplate } from '../types'
-import { ErrorBanner, Modal } from './ui'
+import { ErrorBanner, Field, InfoBanner, Modal } from './ui'
 
 const FORMAT_DOC = 'https://github.com/ULis3h/iteam/blob/master/docs/workflow-format.md'
 
@@ -14,6 +14,8 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [templates, setTemplates] = useState<WorkflowTemplate[]>([])
+  const [inputs, setInputs] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<{ workflow: Workflow; run: Run | null; createdAgents: Array<{ id: string; name: string; defaulted: boolean }>; warnings: string[] } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -21,26 +23,42 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
       setContent('')
       setPreview(null)
       setError(null)
+      setResult(null)
+      setInputs({})
       api.templates().then(setTemplates).catch(() => setTemplates([]))
     }
   }, [open])
 
   useEffect(() => {
     if (!content.trim()) return setPreview(null)
+    let stale = false
     const handle = setTimeout(() => {
-      api.previewImport(content).then(setPreview).catch((e) => setPreview({ ok: false, error: e.message }))
+      api
+        .previewImport(content)
+        .then((p) => {
+          if (stale) return
+          setPreview(p)
+          setInputs(Object.fromEntries((p.inputs ?? []).map((i) => [i.key, i.default ?? ''])))
+        })
+        .catch((e) => !stale && setPreview({ ok: false, error: e.message }))
     }, 350)
-    return () => clearTimeout(handle)
+    return () => {
+      stale = true
+      clearTimeout(handle)
+    }
   }, [content])
 
   const submit = async (run: boolean) => {
     setBusy(true)
     setError(null)
     try {
-      const inputs = run ? Object.fromEntries((preview?.inputs ?? []).map((i) => [i.key, i.default ?? ''])) : undefined
-      const result = await api.importWorkflow(content, run, inputs)
-      onImported(result.workflow, result.run)
-      onClose()
+      const res = await api.importWorkflow(content, run, run ? inputs : undefined)
+      const summary = { workflow: res.workflow, run: res.run, createdAgents: res.createdAgents, warnings: (res as { warnings?: string[] }).warnings ?? [] }
+      if (summary.createdAgents.length || summary.warnings.length) setResult(summary)
+      else {
+        onImported(res.workflow, res.run)
+        onClose()
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -48,7 +66,8 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
     }
   }
 
-  const canRun = !!preview?.ok && !(preview.inputs ?? []).some((i) => i.required && !i.default)
+  const missingRequired = (preview?.inputs ?? []).filter((i) => i.required && !inputs[i.key]?.trim())
+  const canRun = !!preview?.ok && missingRequired.length === 0
 
   return (
     <Modal
@@ -57,23 +76,79 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
       title={t('import.title')}
       wide
       footer={
-        <>
-          <a href={FORMAT_DOC} target="_blank" rel="noreferrer" className="text-[12px] text-ink-soft hover:text-ink mr-auto underline underline-offset-2">
-            {t('import.format')}
-          </a>
-          <button className="btn-secondary" onClick={onClose}>
-            {t('common.cancel')}
-          </button>
-          <button className="btn-secondary" disabled={busy || !preview?.ok} onClick={() => submit(false)}>
-            {t('import.submit')}
-          </button>
-          <button className="btn-primary" disabled={busy || !canRun} onClick={() => submit(true)}>
-            {t('import.submitRun')}
-          </button>
-        </>
+        result ? (
+          <>
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                onImported(result.workflow, null)
+                onClose()
+              }}
+            >
+              {t('import.openWorkflow')}
+            </button>
+            {result.run && (
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  onImported(result.workflow, result.run)
+                  onClose()
+                }}
+              >
+                {t('import.openRun')}
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <a href={FORMAT_DOC} target="_blank" rel="noreferrer" className="text-[12px] text-ink-soft hover:text-ink mr-auto underline underline-offset-2">
+              {t('import.format')}
+            </a>
+            <button className="btn-secondary" onClick={onClose}>
+              {t('common.cancel')}
+            </button>
+            <button className="btn-secondary" disabled={busy || !preview?.ok} onClick={() => submit(false)}>
+              {t('import.submit')}
+            </button>
+            <button className="btn-primary" disabled={busy || !canRun} onClick={() => submit(true)} title={missingRequired.length ? missingRequired.map((i) => i.label || i.key).join(', ') : undefined}>
+              {t('import.submitRun')}
+            </button>
+          </>
+        )
       }
     >
       <ErrorBanner message={error} onClose={() => setError(null)} />
+      {result && (
+        <div className="space-y-3 text-[13px]">
+          <InfoBanner>
+            <span className="font-medium">{t('import.done')}</span> · {result.workflow.name}
+          </InfoBanner>
+          {result.createdAgents.length > 0 && (
+            <div>
+              <div className="label">{t('import.createdAgents')}</div>
+              <ul className="space-y-1">
+                {result.createdAgents.map((a) => (
+                  <li key={a.id}>
+                    {a.name} {a.defaulted && <span className="text-status-cancelled">{t('import.defaultedAgent')}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.warnings.length > 0 && (
+            <div>
+              <div className="label">{t('import.warnings')}</div>
+              <ul className="list-disc pl-5 space-y-0.5 text-[#8f5a00]">
+                {result.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+      {!result && (
+        <>
       <p className="text-[13px] text-ink-soft mb-3">{t('import.desc')}</p>
       {templates.length > 0 && (
         <div className="mb-4">
@@ -159,13 +234,22 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
               </div>
               {(preview.inputs?.length ?? 0) > 0 && (
                 <div>
-                  <div className="text-[11px] text-ink-muted mb-1">{t('editor.inputs')}</div>
-                  <ul className="space-y-0.5">
+                  <div className="text-[11px] text-ink-muted mb-1">{t('import.inputs')}</div>
+                  <div className="space-y-2">
                     {preview.inputs?.map((i) => (
-                      <li key={i.key} className="mono text-[12px]">
-                        {i.key}
-                        {i.required ? <span className="text-status-failed">*</span> : ''} {i.default ? <span className="text-ink-muted">= {i.default}</span> : ''}
-                      </li>
+                      <Field key={i.key} label={i.label || i.key} required={i.required} hint={i.description}>
+                        <input className="input" value={inputs[i.key] ?? ''} onChange={(e) => setInputs((v) => ({ ...v, [i.key]: e.target.value }))} />
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(preview.warnings?.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-[11px] text-ink-muted mb-1">{t('editor.warnings')}</div>
+                  <ul className="list-disc pl-4 text-[12px] text-[#8f5a00] space-y-0.5">
+                    {preview.warnings?.map((w) => (
+                      <li key={w}>{w}</li>
                     ))}
                   </ul>
                 </div>
@@ -174,6 +258,8 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
           )}
         </div>
       </div>
+        </>
+      )}
     </Modal>
   )
 }

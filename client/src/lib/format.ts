@@ -68,3 +68,45 @@ export const ensureId = (base: string, taken: string[]): string => {
 }
 
 export const isTerminal = (status: RunStatus | StepStatus) => ['succeeded', 'failed', 'cancelled', 'skipped'].includes(status)
+
+/** Darker variants of the status colours that stay legible as small text on a light tint. */
+export const statusTextColor = (status: RunStatus | StepStatus): string => {
+  switch (status) {
+    case 'running':
+      return '#2a55c9'
+    case 'succeeded':
+      return '#157a4a'
+    case 'failed':
+      return '#b83232'
+    case 'cancelled':
+      return '#8f5a00'
+    default:
+      return '#5f6368'
+  }
+}
+
+/** Copy text with a fallback for non-secure (plain http) origins where navigator.clipboard is absent. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch {
+    return false
+  }
+}

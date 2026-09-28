@@ -9,7 +9,7 @@ export function runnerRoutes(ctx: AppContext) {
     '/',
     asyncRoute(async (_req, res) => {
       const runners = await ctx.prisma.runner.findMany({ orderBy: { createdAt: 'asc' }, include: { _count: { select: { agents: true } } } })
-      res.json(runners.map((r) => ({ ...serializeRunner(r, ctx.registry.isOnline(r.id)), agents: r._count.agents, activeJobs: ctx.registry.activeJobs(r.id) })))
+      res.json(runners.map((r) => ({ ...serializeRunner(r, ctx.registry.isOnline(r.id)), agents: r._count.agents, activeJobs: ctx.registry.activeJobs(r.id), maxJobs: ctx.registry.isOnline(r.id) ? ctx.registry.maxJobs(r.id) : r.maxJobs })))
     }),
   )
 

@@ -2,7 +2,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorBanner, Spinner } from './components/ui'
 import { AppProvider, useApp } from './lib/app'
-import { I18nProvider } from './lib/i18n'
+import { DirtyProvider } from './lib/dirty'
+import { I18nProvider, useT } from './lib/i18n'
 import { AgentsPage } from './pages/Agents'
 import { OverviewPage } from './pages/Overview'
 import { RunDetailPage } from './pages/RunDetail'
@@ -12,13 +13,26 @@ import { TokenGate } from './pages/TokenGate'
 import { WorkflowEditorPage } from './pages/WorkflowEditor'
 import { WorkflowsPage } from './pages/Workflows'
 
+function NotFound() {
+  const { t } = useT()
+  return (
+    <div className="card p-10 text-center">
+      <p className="text-[15px] font-medium">{t('app.notFound')}</p>
+    </div>
+  )
+}
+
 function Shell() {
-  const { system, needsToken, error } = useApp()
+  const { system, needsToken, error, reloadSystem } = useApp()
+  const { t } = useT()
   if (error && !system) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <ErrorBanner message={`${error} — is the server running on port 3000?`} />
+        <div className="max-w-md w-full text-center">
+          <ErrorBanner message={t('app.serverUnreachable', { error })} />
+          <button className="btn-primary" onClick={() => void reloadSystem()}>
+            {t('app.retry')}
+          </button>
         </div>
       </div>
     )
@@ -32,7 +46,8 @@ function Shell() {
   }
   if (needsToken) return <TokenGate />
   return (
-    <BrowserRouter>
+    <DirtyProvider message={t('app.unsavedConfirm')}>
+      <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<OverviewPage />} />
@@ -43,9 +58,11 @@ function Shell() {
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:id" element={<RunDetailPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </DirtyProvider>
   )
 }
 

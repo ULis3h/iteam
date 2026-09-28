@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Card, Field, PageHeader, Section } from '../components/ui'
 import { useApp } from '../lib/app'
 import { getToken } from '../lib/api'
+import { copyText } from '../lib/format'
 import { useT } from '../lib/i18n'
 
 export function SettingsPage() {
@@ -13,11 +14,10 @@ export function SettingsPage() {
   const [checking, setChecking] = useState(false)
 
   const origin = window.location.origin.replace(/:5173$/, ':3000')
-  const runnerCmd = `git clone https://github.com/ULis3h/iteam.git && cd iteam/runner && npm install\nnode bin/iteam-runner.js --server ${origin}${system?.authRequired ? ' --token <ITEAM_TOKEN>' : ''} --name my-machine`
+  const runnerCmd = `git clone https://github.com/ULis3h/iteam.git && cd iteam/runner && npm install\n${system?.authRequired ? 'ITEAM_TOKEN=<token> ' : ''}node bin/iteam-runner.js --server ${origin} --name my-machine --max-jobs 2`
 
   const copy = async () => {
-    await navigator.clipboard.writeText(runnerCmd)
-    setCopied(true)
+    setCopied(await copyText(runnerCmd))
     setTimeout(() => setCopied(false), 1500)
   }
 

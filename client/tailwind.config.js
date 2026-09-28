@@ -7,7 +7,7 @@ export default {
         ink: {
           DEFAULT: '#1c1c1e',
           soft: '#5f6368',
-          muted: '#8a8f98',
+          muted: '#6b7079',
         },
         line: '#e7e8ec',
         accent: {

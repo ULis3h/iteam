@@ -298,6 +298,10 @@ export class RunManager {
           deferred = true
           continue
         }
+        if (runtime?.location === 'remote' && this.registry.isOnline(runtime.runnerId) && !this.registry.hasCapacity(runtime.runnerId)) {
+          deferred = true // the runner is busy; try again when a job finishes
+          continue
+        }
 
         this.reserved++
         let started: RunStep
@@ -457,8 +461,9 @@ export class RunManager {
       if (!step || step.status !== 'running') return
 
       const write = (line: string) => this.logs.write(runId, stepId, 'system', line)
-      // With an event-stream parser the raw stdout is JSON; the final answer comes from the parser.
-      const output = parserKind === 'claude-stream-json' ? (usage.output ?? '') : result.output?.trim() ? result.output : (usage.output ?? '')
+      // With an event-stream parser the final answer comes from the parser; fall back to raw stdout
+      // when no result event was seen (e.g. a CLI version that printed plain text).
+      const output = parserKind === 'claude-stream-json' ? (usage.output ?? result.output) : result.output?.trim() ? result.output : (usage.output ?? '')
       if (result.truncated) write('note: captured output was truncated to the last part')
       const failure = result.error ?? (usage.isError ? (usage.errorMessage ?? 'agent reported an error') : undefined)
       const success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
