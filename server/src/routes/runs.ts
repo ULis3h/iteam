@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { AppContext } from '../context.js'
 import type { WorkflowDefinition } from '../engine/types.js'
-import { followUpSchema, formatZodError, logsQuerySchema, pruneSchema, quickRunSchema, runBodySchema, runListQuerySchema } from '../workflow/schema.js'
+import { approvalSchema, followUpSchema, formatZodError, logsQuerySchema, pruneSchema, quickRunSchema, runBodySchema, runListQuerySchema } from '../workflow/schema.js'
 import { asyncRoute, HttpError, serializeRun, serializeStep } from './helpers.js'
 
 const parse = <T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: import('zod').ZodError } }, value: unknown): T => {
@@ -130,6 +130,37 @@ export function runRoutes(ctx: AppContext) {
     }),
   )
 
+  /** Approve or reject a step that is waiting for a person. */
+  router.post(
+    '/:id/steps/:stepId/approve',
+    asyncRoute(async (req, res) => {
+      const body = parse(approvalSchema, req.body ?? {})
+      try {
+        await ctx.runs.approve(req.params.id, req.params.stepId, body.approved, body.note)
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
+      }
+      const run = await ctx.prisma.run.findUnique({ where: { id: req.params.id }, include: { steps: { orderBy: { order: 'asc' } } } })
+      if (!run) throw new HttpError(404, 'run not found')
+      res.json(serializeRun(run))
+    }),
+  )
+
+  /** Re-execute one step and everything downstream of it inside the same run. */
+  router.post(
+    '/:id/steps/:stepId/rerun-from',
+    asyncRoute(async (req, res) => {
+      try {
+        await ctx.runs.rerunFrom(req.params.id, req.params.stepId)
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
+      }
+      const run = await ctx.prisma.run.findUnique({ where: { id: req.params.id }, include: { steps: { orderBy: { order: 'asc' } } } })
+      if (!run) throw new HttpError(404, 'run not found')
+      res.json(serializeRun(run))
+    }),
+  )
+
   router.post(
     '/:id/cancel',
     asyncRoute(async (req, res) => {
@@ -178,7 +209,7 @@ export function runRoutes(ctx: AppContext) {
     asyncRoute(async (req, res) => {
       const run = await ctx.prisma.run.findUnique({ where: { id: req.params.id } })
       if (!run) throw new HttpError(404, 'run not found')
-      if (['running', 'queued'].includes(run.status)) throw new HttpError(409, 'cancel the run before deleting it')
+      if (['running', 'queued', 'waiting'].includes(run.status)) throw new HttpError(409, 'cancel the run before deleting it')
       await ctx.prisma.run.delete({ where: { id: req.params.id } })
       ctx.broadcast.all('run:deleted', { id: req.params.id })
       res.status(204).end()

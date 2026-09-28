@@ -2,6 +2,16 @@
 
 All notable changes to iTeam are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-09-28
+
+### Added
+- Human-in-the-loop **approval steps** (`type: approval`): the run waits (status `waiting`, no slot used, survives restarts) until someone approves or rejects in the UI; the note becomes the step output.
+- **Cost limit** per workflow (`settings.maxCostUsd`): the run fails once the summed reported cost exceeds it.
+- **Rerun from a step**: re-execute one step and everything downstream inside the same run.
+- **Working-tree diff** captured per step (local and remote) and shown in the step detail.
+- **Notifications**: opt-in browser notifications and an optional webhook (`ITEAM_WEBHOOK_URL`, `ITEAM_PUBLIC_URL`) for finished / waiting runs.
+- First-run checklist on the overview (CLI detected → agent → workflow → run); `waiting` filter on the runs page; `release-gate` example.
+
 ## [1.1.0] - 2026-09-28
 
 ### Added

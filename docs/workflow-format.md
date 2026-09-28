@@ -8,6 +8,9 @@
 name: 新功能开发流水线            # 必填
 description: 从需求到评审         # 可选
 
+settings:                         # 可选
+  maxCostUsd: 5                   # 费用上限（美元）：步骤上报费用之和超过即停止运行
+
 inputs:                           # 可选，运行时填写
   - key: repo                     # 必填，字母开头，可含数字 _ -
     label: 仓库路径               # 界面显示名
@@ -46,14 +49,24 @@ steps:                            # 必填，至少一个
     continueOnError: false        # 失败时不阻塞下游
     workDir: "{{inputs.repo}}"    # 覆盖工作目录，可用模板变量
 
+  - id: approve                   # 人工审批步骤：不需要 agent
+    name: 方案确认
+    type: approval
+    dependsOn: [design]
+    prompt: |                     # 展示给审批人的说明，可引用上游输出
+      请确认以下方案是否可以实施：
+      {{steps.design.output}}
+
   - id: implement
     name: 实现
     agent: 开发者
-    dependsOn: [design]
+    dependsOn: [approve]
     prompt: |
-      根据方案实现：
+      根据方案实现（审批备注：{{steps.approve.output}}）：
       {{steps.design.output}}
 ```
+
+步骤 `type` 为 `agent`（默认）或 `approval`。审批步骤轮到时运行进入「待审批」，在运行页通过或驳回；备注作为该步骤的输出，驳回等同于失败（可加 `continueOnError` 让下游照常执行）。
 
 ## 模板变量
 
@@ -91,4 +104,4 @@ steps:                            # 必填，至少一个
 
 ## English summary
 
-A workflow file has `name`, optional `description`, optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`). Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.
+A workflow file has `name`, optional `description`, optional `settings` (`maxCostUsd`), optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `type` = `agent` | `approval`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`). An approval step needs no agent: the run waits until a person approves or rejects it in the UI, and the reviewer's note becomes the step output. Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.

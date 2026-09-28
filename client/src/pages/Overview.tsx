@@ -1,16 +1,18 @@
-import { ArrowRight, Play, Plus, Upload } from 'lucide-react'
+import { ArrowRight, Check, Circle, Play } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, ErrorBanner, PageHeader } from '../components/ui'
 import { api } from '../lib/api'
-import { formatDuration, relativeTime } from '../lib/format'
+import { useApp } from '../lib/app'
+import { formatDuration, isActive, relativeTime } from '../lib/format'
 import { useT } from '../lib/i18n'
 import { useReconnect, useSocketEvent } from '../lib/socket'
 import type { Agent, Run, Stats } from '../types'
 
 export function OverviewPage() {
   const { t, locale } = useT()
+  const { system } = useApp()
   const navigate = useNavigate()
   const [stats, setStats] = useState<Stats | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
@@ -50,7 +52,7 @@ export function OverviewPage() {
     }, [load]),
   )
   const [now, setNow] = useState(Date.now())
-  const live = runs.some((r) => r.status === 'running' || r.status === 'queued')
+  const live = runs.some((r) => isActive(r.status))
   useEffect(() => {
     if (!live) return
     const h = setInterval(() => setNow(Date.now()), 1000)
@@ -68,6 +70,14 @@ export function OverviewPage() {
       setBusy(false)
     }
   }
+
+  const cliDetected = Object.values(system?.capabilities?.providers ?? {}).some((p) => p.available) || agents.some((a) => a.provider === 'custom')
+  const checklist = [
+    { key: 'cli', done: cliDetected, label: t('overview.checklist.cli'), hint: t('overview.checklist.cliHint'), to: '/settings', action: t('overview.checklist.check') },
+    { key: 'agent', done: agents.length > 0, label: t('overview.checklist.agent'), to: '/agents', action: t('overview.addAgent') },
+    { key: 'workflow', done: (stats?.workflows ?? 0) > 0, label: t('overview.checklist.workflow'), to: '/workflows?import=1', action: t('overview.getStarted.import') },
+    { key: 'run', done: runs.length > 0, label: t('overview.checklist.run'), to: '/workflows', action: t('common.run') },
+  ]
 
   const statCards: Array<[string, number | string]> = stats
     ? [
@@ -94,24 +104,29 @@ export function OverviewPage() {
         ))}
       </div>
 
-      {agents.length === 0 ? (
-        <Card className="p-8 mb-6 fade-in">
-          <h2 className="text-[17px] font-semibold mb-3">{t('overview.empty.title')}</h2>
-          <ol className="space-y-2 text-[13px] text-ink-soft list-decimal pl-5">
-            <li>{t('overview.empty.step1')}</li>
-            <li>{t('overview.empty.step2')}</li>
-            <li>{t('overview.empty.step3')}</li>
+      {stats && checklist.some((c) => !c.done) && (
+        <Card className="p-6 mb-6 fade-in">
+          <h2 className="text-[15px] font-semibold">{t('overview.checklist.title')}</h2>
+          <p className="text-[13px] text-ink-soft mb-4">{t('overview.checklist.desc')}</p>
+          <ol className="space-y-2">
+            {checklist.map((item) => (
+              <li key={item.key} className="flex items-center gap-3 text-[13px]">
+                {item.done ? <Check size={16} className="text-status-success shrink-0" /> : <Circle size={16} className="text-ink-muted shrink-0" />}
+                <span className={`flex-1 ${item.done ? 'text-ink-muted line-through' : ''}`}>
+                  {item.label}
+                  {!item.done && item.hint && <span className="block text-[12px] text-ink-muted">{item.hint}</span>}
+                </span>
+                {!item.done && (
+                  <Link to={item.to} className="btn-secondary btn-sm">
+                    {item.action} <ArrowRight size={13} />
+                  </Link>
+                )}
+              </li>
+            ))}
           </ol>
-          <div className="mt-5 flex gap-2">
-            <Link to="/agents" className="btn-primary">
-              <Plus size={15} /> {t('overview.addAgent')}
-            </Link>
-            <Link to="/workflows?import=1" className="btn-secondary">
-              <Upload size={15} /> {t('overview.getStarted.import')}
-            </Link>
-          </div>
         </Card>
-      ) : (
+      )}
+      {agents.length > 0 && (
         <Card className="p-6 mb-6 fade-in">
           <div className="flex items-center justify-between mb-1">
             <h2 className="text-[15px] font-semibold">{t('overview.quick.title')}</h2>

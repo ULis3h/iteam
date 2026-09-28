@@ -50,6 +50,10 @@ export const config = {
   corsOrigins: (process.env.ITEAM_CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
   /** Finished runs older than this many days are deleted daily; 0 keeps everything. */
   retentionDays: intEnv('ITEAM_RETENTION_DAYS', 0, 0, 3650),
+  /** Optional webhook that receives a JSON POST when a run finishes or waits for approval. */
+  webhookUrl: (process.env.ITEAM_WEBHOOK_URL || '').trim(),
+  /** Base URL used in notifications to link back to the UI. */
+  publicUrl: (process.env.ITEAM_PUBLIC_URL || '').trim().replace(/\/$/, '') || `http://localhost:${intEnv('PORT', 3000, 1, 65535)}`,
 }
 
 export const isLoopback = (h: string) => ['127.0.0.1', 'localhost', '::1'].includes(h)

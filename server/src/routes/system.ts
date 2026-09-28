@@ -49,7 +49,7 @@ export function systemRoutes(ctx: AppContext) {
       const [agents, workflows, running, failed24h, succeeded24h, recent] = await Promise.all([
         ctx.prisma.agent.count(),
         ctx.prisma.workflow.count(),
-        ctx.prisma.run.count({ where: { status: { in: ['running', 'queued'] } } }),
+        ctx.prisma.run.count({ where: { status: { in: ['running', 'queued', 'waiting'] } } }),
         ctx.prisma.run.count({ where: { status: 'failed', finishedAt: { gte: since } } }),
         ctx.prisma.run.count({ where: { status: 'succeeded', finishedAt: { gte: since } } }),
         ctx.prisma.run.count({ where: { createdAt: { gte: since } } }),

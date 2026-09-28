@@ -36,6 +36,8 @@ export const statusColor = (status: RunStatus | StepStatus): string => {
   switch (status) {
     case 'running':
       return '#3b6cf6'
+    case 'waiting':
+      return '#7c4dff'
     case 'succeeded':
       return '#1f9d61'
     case 'failed':
@@ -68,11 +70,16 @@ export const ensureId = (base: string, taken: string[]): string => {
 
 export const isTerminal = (status: RunStatus | StepStatus) => ['succeeded', 'failed', 'cancelled', 'skipped'].includes(status)
 
+/** Runs that still need the server (executing) or a person (waiting for approval). */
+export const isActive = (status: RunStatus) => status === 'running' || status === 'queued' || status === 'waiting'
+
 /** Darker variants of the status colours that stay legible as small text on a light tint. */
 export const statusTextColor = (status: RunStatus | StepStatus): string => {
   switch (status) {
     case 'running':
       return '#2a55c9'
+    case 'waiting':
+      return '#5b35c7'
     case 'succeeded':
       return '#157a4a'
     case 'failed':

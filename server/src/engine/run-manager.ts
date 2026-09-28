@@ -7,6 +7,7 @@ import { buildJob } from './adapters.js'
 import { topologicalOrder } from './dag.js'
 import { runLocalJob } from './local-executor.js'
 import type { LogWriter } from './log-writer.js'
+import { notifyRun } from './notifier.js'
 import { createParser, type ParserKind, type StepUsage } from './parsers.js'
 import type { RunnerRegistry } from './runner-registry.js'
 import { renderTemplate } from './template.js'
@@ -40,9 +41,14 @@ interface ActiveJob {
   handle: JobHandle | null
 }
 
+type RunWithSteps = Run & { steps: RunStep[] }
+
+const ACTIVE_RUN = ['queued', 'running', 'waiting']
+const isApproval = (s?: WorkflowStep) => s?.type === 'approval'
 const isHardFailure = (s: RunStep) => s.status === 'failed' && !s.continueOnError
 const isSatisfied = (s: RunStep) => s.status === 'succeeded' || (s.status === 'failed' && s.continueOnError)
 const backoffMs = (attempt: number) => Math.min(30_000, 1000 * 2 ** Math.max(0, attempt - 1))
+const money = (n: number) => `$${n.toFixed(n < 1 ? 3 : 2)}`
 
 export const resolveRuntime = (agent: Agent, step: Pick<WorkflowStep, 'model' | 'effort' | 'timeoutSec' | 'workDir' | 'resumeSessionId'>): StepRuntime => ({
   agentId: agent.id,
@@ -63,11 +69,30 @@ export const resolveRuntime = (agent: Agent, step: Pick<WorkflowStep, 'model' | 
   resumeSessionId: step.resumeSessionId,
 })
 
+/** Steps downstream of `stepKey` (transitively), by key. */
+export const descendantsOf = (steps: Array<{ id: string; dependsOn: string[] }>, stepKey: string): Set<string> => {
+  const out = new Set<string>()
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const s of steps) {
+      if (out.has(s.id) || s.id === stepKey) continue
+      if (s.dependsOn.some((d) => d === stepKey || out.has(d))) {
+        out.add(s.id)
+        grew = true
+      }
+    }
+  }
+  return out
+}
+
 /**
  * Executes runs: resolves the DAG, dispatches steps to local/remote executors and
  * tracks state. Invariants: every completion is correlated with the job that produced
  * it (stale results after cancel/retry are ignored), capacity is reserved before any
  * await, and runs deferred by capacity are re-scheduled when any step finishes.
+ * Approval steps park the run in "waiting" (no process, survives restarts) until a
+ * person approves or rejects them.
  */
 export class RunManager {
   private active = new Map<string, ActiveJob>() // stepId -> job in flight
@@ -101,14 +126,15 @@ export class RunManager {
 
   // ---------- creation ----------
 
-  async createRun(def: WorkflowDefinition, opts: CreateRunOptions = {}): Promise<Run & { steps: RunStep[] }> {
+  async createRun(def: WorkflowDefinition, opts: CreateRunOptions = {}): Promise<RunWithSteps> {
     if (!def.steps.length) throw new Error('workflow has no steps')
     const order = topologicalOrder(def.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn })))
 
-    const agentIds = [...new Set(def.steps.map((s) => s.agentId))]
+    const agentSteps = def.steps.filter((s) => !isApproval(s))
+    const agentIds = [...new Set(agentSteps.map((s) => s.agentId))]
     const agents = await this.prisma.agent.findMany({ where: { id: { in: agentIds } } })
     const agentById = new Map(agents.map((a) => [a.id, a]))
-    for (const step of def.steps) {
+    for (const step of agentSteps) {
       if (!agentById.has(step.agentId)) throw new Error(`step "${step.name}" references a missing agent`)
     }
 
@@ -130,17 +156,21 @@ export class RunManager {
         snapshot: JSON.stringify(def),
         steps: {
           create: def.steps.map((step) => {
-            const agent = agentById.get(step.agentId)!
-            const runtime = resolveRuntime(agent, step)
-            return {
+            const base = {
               key: step.id,
               name: step.name,
               order: order.indexOf(step.id),
-              agentId: agent.id,
-              agentName: agent.name,
               dependsOn: JSON.stringify(step.dependsOn),
               maxAttempts: (step.retries ?? 0) + 1,
               continueOnError: !!step.continueOnError,
+            }
+            if (isApproval(step)) return { ...base, agentId: null, agentName: '', provider: 'approval', location: 'local', runtime: '{}' }
+            const agent = agentById.get(step.agentId)!
+            const runtime = resolveRuntime(agent, step)
+            return {
+              ...base,
+              agentId: agent.id,
+              agentName: agent.name,
               provider: runtime.provider,
               model: runtime.model,
               effort: runtime.effort,
@@ -170,15 +200,20 @@ export class RunManager {
   }
 
   async cancel(runId: string, reason = 'cancelled by user') {
+    await this.abort(runId, reason, 'cancelled')
+  }
+
+  /** Stop every open step and close the run with the given status (cancelled by a person, or failed by a guard). */
+  private async abort(runId: string, reason: string, status: 'cancelled' | 'failed') {
     await this.withLock(runId, async () => {
       const run = await this.prisma.run.findUnique({ where: { id: runId }, include: { steps: true } })
-      if (!run || !['queued', 'running'].includes(run.status)) return
+      if (!run || !ACTIVE_RUN.includes(run.status)) return
       for (const step of run.steps) {
         if (step.status === 'running') {
           this.stopJob(step.id)
           this.logs.write(run.id, step.id, 'system', reason)
         }
-        if (step.status === 'running' || step.status === 'pending') {
+        if (['running', 'pending', 'waiting'].includes(step.status)) {
           this.retryAfter.delete(step.id)
           const updated = await this.prisma.runStep.update({
             where: { id: step.id },
@@ -187,9 +222,10 @@ export class RunManager {
           this.events.step(updated)
         }
       }
-      const updated = await this.prisma.run.update({ where: { id: runId }, data: { status: 'cancelled', finishedAt: new Date(), error: reason } })
+      const updated = await this.prisma.run.update({ where: { id: runId }, data: { status, finishedAt: new Date(), error: reason } })
       this.waiting.delete(runId)
       this.events.run(updated)
+      void notifyRun('finished', updated)
     })
     await this.logs.flush()
     void this.tickWaiting()
@@ -201,19 +237,42 @@ export class RunManager {
     if (!existing) throw new Error('run not found')
     if (!['failed', 'cancelled'].includes(existing.status)) throw new Error('only failed or cancelled runs can be retried')
     await this.waitForStopping(runId)
+    await this.resume(runId, (step) => ['failed', 'skipped', 'cancelled'].includes(step.status), '— retry requested —')
+  }
+
+  /**
+   * Re-execute one step and everything downstream of it, keeping every other result.
+   * The run must be finished and the step's upstream must have succeeded.
+   */
+  async rerunFrom(runId: string, stepId: string) {
+    const run = await this.prisma.run.findUnique({ where: { id: runId }, include: { steps: true } })
+    if (!run) throw new Error('run not found')
+    if (ACTIVE_RUN.includes(run.status)) throw new Error('the run is still active; cancel it first')
+    const target = run.steps.find((s) => s.id === stepId)
+    if (!target) throw new Error('step not found')
+    const graph = run.steps.map((s) => ({ id: s.key, dependsOn: parseJson<string[]>(s.dependsOn, []) }))
+    const byKey = new Map(run.steps.map((s) => [s.key, s]))
+    const upstream = [...descendantsOfReverse(graph, target.key)].map((k) => byKey.get(k)!).filter(Boolean)
+    const broken = upstream.find((s) => !isSatisfied(s))
+    if (broken) throw new Error(`upstream step "${broken.name}" did not succeed (${broken.status}); retry the run instead`)
+    const reset = new Set([target.key, ...descendantsOf(graph, target.key)])
+    await this.waitForStopping(runId)
+    await this.resume(runId, (step) => reset.has(step.key), `— rerun from "${target.name}" —`)
+  }
+
+  private async resume(runId: string, shouldReset: (step: RunStep) => boolean, note: string) {
     await this.withLock(runId, async () => {
       const run = await this.prisma.run.findUnique({ where: { id: runId }, include: { steps: true } })
       if (!run) return
       for (const step of run.steps) {
-        if (['failed', 'skipped', 'cancelled'].includes(step.status)) {
-          await this.logs.prime(step.id)
-          this.logs.write(run.id, step.id, 'system', '— retry requested —')
-          const updated = await this.prisma.runStep.update({
-            where: { id: step.id },
-            data: { status: 'pending', attempt: 0, output: null, error: null, exitCode: null, startedAt: null, finishedAt: null },
-          })
-          this.events.step(updated)
-        }
+        if (!shouldReset(step)) continue
+        await this.logs.prime(step.id)
+        this.logs.write(run.id, step.id, 'system', note)
+        const updated = await this.prisma.runStep.update({
+          where: { id: step.id },
+          data: { status: 'pending', attempt: 0, output: null, diff: null, error: null, exitCode: null, startedAt: null, finishedAt: null },
+        })
+        this.events.step(updated)
       }
       const updated = await this.prisma.run.update({
         where: { id: runId },
@@ -221,6 +280,30 @@ export class RunManager {
       })
       this.events.run(updated)
     })
+    await this.tick(runId)
+  }
+
+  /** Resolve an approval step. The reviewer's note becomes the step output so later steps can read it. */
+  async approve(runId: string, stepId: string, approved: boolean, note?: string) {
+    const step = await this.prisma.runStep.findFirst({ where: { id: stepId, runId } })
+    if (!step) throw new Error('step not found')
+    if (step.status !== 'waiting') throw new Error('this step is not waiting for approval')
+    const text = note?.trim() ?? ''
+    await this.withLock(runId, async () => {
+      const current = await this.prisma.runStep.findUnique({ where: { id: stepId } })
+      if (!current || current.status !== 'waiting') return
+      await this.logs.prime(stepId)
+      this.logs.write(runId, stepId, 'system', approved ? `✓ approved${text ? `: ${text}` : ''}` : `✗ rejected${text ? `: ${text}` : ''}`)
+      const updated = await this.prisma.runStep.update({
+        where: { id: stepId },
+        data: approved
+          ? { status: 'succeeded', output: text || 'approved', error: null, exitCode: 0, finishedAt: new Date() }
+          : { status: 'failed', output: text, error: text ? `rejected: ${text}` : 'rejected', finishedAt: new Date() },
+      })
+      this.events.step(updated)
+      this.logs.forget(stepId)
+    })
+    await this.logs.flush()
     await this.tick(runId)
   }
 
@@ -235,8 +318,9 @@ export class RunManager {
       data: { status: 'failed', error: 'server restarted during execution', finishedAt: new Date() },
     })
     if (stale.count || runs.count) log.warn(`recovered ${runs.count} interrupted run(s), ${stale.count} step(s)`)
-    const queued = await this.prisma.run.findMany({ where: { status: 'queued' }, select: { id: true } })
-    for (const run of queued) void this.start(run.id)
+    // runs parked on an approval survive a restart; queued ones simply start
+    const resumable = await this.prisma.run.findMany({ where: { status: { in: ['queued', 'waiting'] } }, select: { id: true, status: true } })
+    for (const run of resumable) void (run.status === 'queued' ? this.start(run.id) : this.tick(run.id))
   }
 
   /** Stop every running job before the process exits so agents do not keep editing workspaces. */
@@ -261,10 +345,12 @@ export class RunManager {
     if (this.closed) return
     await this.withLock(runId, async () => {
       const run = await this.prisma.run.findUnique({ where: { id: runId }, include: { steps: { orderBy: { order: 'asc' } } } })
-      if (!run || run.status !== 'running') {
+      if (!run || (run.status !== 'running' && run.status !== 'waiting')) {
         this.waiting.delete(runId)
         return
       }
+      const def = this.definitionOf(run)
+      const defByKey = new Map(def.steps.map((s) => [s.id, s]))
 
       const byKey = new Map(run.steps.map((s) => [s.key, s]))
       let deferred = false
@@ -282,6 +368,13 @@ export class RunManager {
           continue
         }
         if (!deps.every(isSatisfied)) continue
+
+        const stepDef = defByKey.get(step.key)
+        if (isApproval(stepDef)) {
+          // no process, no capacity: park the step until a person decides
+          byKey.set(step.key, await this.holdForApproval(run, step, stepDef!, byKey, def))
+          continue
+        }
 
         const notBefore = this.retryAfter.get(step.id)
         if (notBefore && notBefore > Date.now()) {
@@ -306,7 +399,7 @@ export class RunManager {
         this.reserved++
         let started: RunStep
         try {
-          started = await this.startStep(run, step, byKey, runtime)
+          started = await this.startStep(run, step, byKey, runtime, def)
         } catch (err) {
           started = await this.failStep(run, step, `internal error: ${(err as Error).message}`, false)
         } finally {
@@ -319,9 +412,25 @@ export class RunManager {
       else this.waiting.delete(runId)
 
       const steps = [...byKey.values()]
-      const open = steps.some((s) => s.status === 'pending' || s.status === 'running')
-      if (!open) await this.finalize(run.id, steps)
+      const running = steps.some((s) => s.status === 'running')
+      const held = steps.some((s) => s.status === 'waiting')
+      const pending = steps.some((s) => s.status === 'pending')
+      if (!running && !held && !pending) {
+        await this.finalize(run.id, steps)
+        return
+      }
+      // "waiting" = nothing is executing and the only thing holding the run up is a person
+      const status = running || deferred || !held ? 'running' : 'waiting'
+      if (status !== run.status) {
+        const updated = await this.prisma.run.update({ where: { id: runId }, data: { status } })
+        this.events.run(updated)
+        if (status === 'waiting') void notifyRun('waiting', updated)
+      }
     })
+  }
+
+  private definitionOf(run: Run): WorkflowDefinition {
+    return parseJson<WorkflowDefinition>(run.snapshot, { name: run.name, description: '', inputs: [], steps: [] })
   }
 
   private runtimeOf(step: RunStep): StepRuntime | null {
@@ -329,8 +438,31 @@ export class RunManager {
     return parsed && parsed.provider ? (parsed as StepRuntime) : null
   }
 
-  private async startStep(run: Run & { steps: RunStep[] }, step: RunStep, byKey: Map<string, RunStep>, frozen: StepRuntime | null): Promise<RunStep> {
-    const def = parseJson<WorkflowDefinition>(run.snapshot, { name: run.name, description: '', inputs: [], steps: [] })
+  private templateContext(run: Run, def: WorkflowDefinition, byKey: Map<string, RunStep>) {
+    const inputs = parseJson<Record<string, string>>(run.inputs, {})
+    return {
+      inputs,
+      input: inputs,
+      steps: Object.fromEntries([...byKey.values()].map((s) => [s.key, { output: s.output ?? '', status: s.status, error: s.error ?? '' }])),
+      run: { id: run.id, name: run.name },
+      workflow: { name: def.name },
+    }
+  }
+
+  private async holdForApproval(run: Run, step: RunStep, stepDef: WorkflowStep, byKey: Map<string, RunStep>, def: WorkflowDefinition): Promise<RunStep> {
+    const rendered = renderTemplate(stepDef.prompt, this.templateContext(run, def, byKey))
+    await this.logs.prime(step.id)
+    this.logs.write(run.id, step.id, 'system', '⏸ waiting for approval')
+    if (rendered.missing.length) this.logs.write(run.id, step.id, 'system', `warning: unresolved template variables: ${rendered.missing.join(', ')}`)
+    const updated = await this.prisma.runStep.update({
+      where: { id: step.id },
+      data: { status: 'waiting', prompt: rendered.text.trim(), startedAt: step.startedAt ?? new Date(), finishedAt: null, error: null, attempt: step.attempt + 1 },
+    })
+    this.events.step(updated)
+    return updated
+  }
+
+  private async startStep(run: RunWithSteps, step: RunStep, byKey: Map<string, RunStep>, frozen: StepRuntime | null, def: WorkflowDefinition): Promise<RunStep> {
     const stepDef = def.steps.find((s) => s.id === step.key)
     if (!stepDef) return this.failStep(run, step, 'step definition missing from run snapshot', false)
 
@@ -348,14 +480,7 @@ export class RunManager {
       if (!this.registry.isOnline(runtime.runnerId)) return this.failStep(run, step, `runner for agent "${runtime.agentName}" is offline`, true)
     }
 
-    const inputs = parseJson<Record<string, string>>(run.inputs, {})
-    const context = {
-      inputs,
-      input: inputs,
-      steps: Object.fromEntries([...byKey.values()].map((s) => [s.key, { output: s.output ?? '', status: s.status, error: s.error ?? '' }])),
-      run: { id: run.id, name: run.name },
-      workflow: { name: def.name },
-    }
+    const context = this.templateContext(run, def, byKey)
     const rendered = renderTemplate(stepDef.prompt, context)
     // the working directory may reference inputs too, e.g. workDir: "{{inputs.repo}}"
     if (/\{\{/.test(runtime.workDir)) {
@@ -462,6 +587,7 @@ export class RunManager {
     this.active.delete(stepId)
     this.runningByAgent.set(current.agentId, Math.max(0, (this.runningByAgent.get(current.agentId) ?? 1) - 1))
 
+    let overBudget: string | null = null
     await this.withLock(runId, async () => {
       const step = await this.prisma.runStep.findUnique({ where: { id: stepId } })
       if (!step || step.status !== 'running') return
@@ -471,6 +597,7 @@ export class RunManager {
       // when no result event was seen (e.g. a CLI version that printed plain text).
       const output = parserKind === 'claude-stream-json' ? (usage.output ?? result.output) : result.output?.trim() ? result.output : (usage.output ?? '')
       if (result.truncated) write('note: captured output was truncated to the last part')
+      if (result.diff) write(`changes in working tree: ${result.diff.split('\n')[0].trim().slice(0, 200)}`)
       const failure = result.error ?? (usage.isError ? (usage.errorMessage ?? 'agent reported an error') : undefined)
       const success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
       const meta = {
@@ -479,6 +606,7 @@ export class RunManager {
         inputTokens: usage.inputTokens ?? step.inputTokens,
         outputTokens: usage.outputTokens ?? step.outputTokens,
         turns: usage.turns ?? step.turns,
+        diff: result.diff ?? step.diff,
       }
       let data: Partial<RunStep>
 
@@ -506,10 +634,23 @@ export class RunManager {
       }
       this.events.step(updated)
       if (updated.status !== 'pending') this.logs.forget(stepId)
+      overBudget = await this.checkBudget(runId, write)
     })
     await this.logs.flush()
-    await this.tick(runId)
+    if (overBudget) await this.abort(runId, overBudget, 'failed')
+    else await this.tick(runId)
     await this.tickWaiting()
+  }
+
+  /** Compare the summed cost reported by the CLIs with the workflow's budget (settings.maxCostUsd). */
+  private async checkBudget(runId: string, write: (line: string) => void): Promise<string | null> {
+    const run = await this.prisma.run.findUnique({ where: { id: runId }, select: { snapshot: true } })
+    const max = run ? parseJson<WorkflowDefinition | null>(run.snapshot, null)?.settings?.maxCostUsd : undefined
+    if (!max || !(max > 0)) return null
+    const sum = await this.prisma.runStep.aggregate({ _sum: { costUsd: true }, where: { runId } })
+    const spent = sum._sum.costUsd ?? 0
+    write(`cost so far ${money(spent)} of ${money(max)} budget`)
+    return spent > max ? `budget exceeded: ${money(spent)} spent, limit ${money(max)}` : null
   }
 
   private stopJob(stepId: string) {
@@ -546,6 +687,7 @@ export class RunManager {
       this.logs.forget(s.id)
     }
     this.events.run(updated)
+    void notifyRun('finished', updated)
     await this.logs.flush()
   }
 
@@ -560,7 +702,7 @@ export class RunManager {
         log.error(`run ${runId}: ${message}`)
         try {
           const run = await this.prisma.run.findUnique({ where: { id: runId } })
-          if (run && run.status === 'running') {
+          if (run && (run.status === 'running' || run.status === 'waiting')) {
             const updated = await this.prisma.run.update({ where: { id: runId }, data: { status: 'failed', error: `internal error: ${message}`, finishedAt: new Date() } })
             this.events.run(updated)
           }
@@ -574,4 +716,18 @@ export class RunManager {
     this.locks.set(runId, next)
     return next
   }
+}
+
+/** Steps upstream of `stepKey` (transitively), by key. */
+const descendantsOfReverse = (steps: Array<{ id: string; dependsOn: string[] }>, stepKey: string): Set<string> => {
+  const byId = new Map(steps.map((s) => [s.id, s]))
+  const out = new Set<string>()
+  const stack = [...(byId.get(stepKey)?.dependsOn ?? [])]
+  while (stack.length) {
+    const k = stack.pop()!
+    if (out.has(k)) continue
+    out.add(k)
+    stack.push(...(byId.get(k)?.dependsOn ?? []))
+  }
+  return out
 }

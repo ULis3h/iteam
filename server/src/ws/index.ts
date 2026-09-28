@@ -32,6 +32,7 @@ const jobDoneSchema = z.object({
     timedOut: z.boolean().optional(),
     cancelled: z.boolean().optional(),
     truncated: z.boolean().optional(),
+    diff: z.string().max(300_000).optional(),
   }),
 })
 

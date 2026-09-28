@@ -68,6 +68,7 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
     cwd: runtime.workDir,
     env: runtime.env,
     timeoutSec: runtime.timeoutSec,
+    captureDiff: true,
   }
 
   switch (runtime.provider) {

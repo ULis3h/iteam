@@ -1,7 +1,10 @@
 import { Bot, LayoutGrid, ListChecks, Settings, Workflow } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useCallback, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useDirty } from '../lib/dirty'
-import { useConnectionState } from '../lib/socket'
+import { showNotification } from '../lib/notify'
+import { useConnectionState, useSocketEvent } from '../lib/socket'
+import type { Run } from '../types'
 import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
 import { AuroraBackground } from './AuroraBackground'
@@ -12,6 +15,7 @@ export function Layout() {
   const { system } = useApp()
   const { confirmLeave } = useDirty()
   const connected = useConnectionState()
+  useRunNotifications()
   const guard = (e: React.MouseEvent) => {
     if (!confirmLeave()) e.preventDefault()
   }
@@ -71,5 +75,33 @@ export function Layout() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Browser notifications when a run finishes or waits for approval (opt-in via Settings). */
+function useRunNotifications() {
+  const { t } = useT()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const path = useRef(location.pathname)
+  path.current = location.pathname
+  const last = useRef(new Map<string, string>())
+  useSocketEvent(
+    'run:changed',
+    useCallback(
+      (payload: unknown) => {
+        const run = payload as Run
+        const prev = last.current.get(run.id)
+        if (prev === run.status) return
+        last.current.set(run.id, run.status)
+        if (run.status === 'queued' || run.status === 'running') return
+        if (run.status !== 'waiting') last.current.delete(run.id)
+        // the person is looking at this run already
+        if (document.visibilityState === 'visible' && path.current === `/runs/${run.id}`) return
+        const title = run.status === 'waiting' ? t('notify.waiting', { name: run.name }) : t('notify.finished', { name: run.name, status: t(`status.${run.status}` as never) })
+        showNotification(title, run.error ?? '', `run-${run.id}`, () => navigate(`/runs/${run.id}`))
+      },
+      [t, navigate],
+    ),
   )
 }

@@ -48,7 +48,7 @@ export function RoadmapTimeline({ steps, onSelect, selectedId }: { steps: RunSte
                     >
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor(s.status) }} />
                       {s.name}
-                      <span className="text-ink-muted">· {s.agentName}</span>
+                      <span className="text-ink-muted">· {s.agentName || (s.provider === 'approval' ? t('editor.step.type.approval') : '')}</span>
                     </button>
                   )
                 })}

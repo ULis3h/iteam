@@ -62,6 +62,7 @@ model Workflow {
   description String   @default("")
   inputs      String   @default("[]") // JSON WorkflowInput[]
   steps       String   @default("[]") // JSON WorkflowStep[]
+  settings    String   @default("{}") // JSON WorkflowSettings (budget, notifications)
   source      String   @default("ui") // ui | import
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -76,7 +77,7 @@ model Run {
   id         String    @id @default(uuid())
   workflowId String?
   name       String
-  status     String    @default("queued") // queued | running | succeeded | failed | cancelled
+  status     String    @default("queued") // queued | running | waiting | succeeded | failed | cancelled
   inputs     String    @default("{}")     // JSON Record<string,string>
   snapshot   String    @default("{}")     // JSON: workflow definition frozen at run time
   error      String?
@@ -101,12 +102,13 @@ model RunStep {
   agentId         String?
   agentName       String
   dependsOn       String    @default("[]") // JSON string[]
-  status          String    @default("pending") // pending | running | succeeded | failed | skipped | cancelled
+  status          String    @default("pending") // pending | waiting | running | succeeded | failed | skipped | cancelled
   attempt         Int       @default(0)
   maxAttempts     Int       @default(1)
   continueOnError Boolean   @default(false)
   prompt          String?
   output          String?
+  diff            String?   // git working-tree changes captured after the step (best effort)
   error           String?
   exitCode        Int?
   provider        String    @default("")

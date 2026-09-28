@@ -1,8 +1,9 @@
 export type Effort = 'low' | 'medium' | 'high' | 'max'
 export type Provider = 'claude-code' | 'codex' | 'gemini' | 'custom'
 export type Location = 'local' | 'remote'
-export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
-export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
+export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled'
+export type StepStatus = 'pending' | 'waiting' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
+export type StepType = 'agent' | 'approval'
 export type AgentState = 'ready' | 'busy' | 'offline' | 'missing-cli'
 
 export interface ProviderSpec {
@@ -83,6 +84,8 @@ export interface WorkflowInput {
 export interface WorkflowStep {
   id: string
   name: string
+  /** 'agent' (default) runs a CLI agent; 'approval' pauses the run until a person approves. */
+  type?: StepType
   agentId: string
   prompt: string
   dependsOn: string[]
@@ -96,12 +99,18 @@ export interface WorkflowStep {
   resumeSessionId?: string
 }
 
+export interface WorkflowSettings {
+  /** Stop the run once the summed step cost exceeds this amount (USD). */
+  maxCostUsd?: number
+}
+
 export interface Workflow {
   id: string
   name: string
   description: string
   inputs: WorkflowInput[]
   steps: WorkflowStep[]
+  settings?: WorkflowSettings
   source: 'ui' | 'import'
   createdAt: string
   updatedAt: string
@@ -114,6 +123,7 @@ export interface WorkflowDefinition {
   description: string
   inputs: WorkflowInput[]
   steps: WorkflowStep[]
+  settings?: WorkflowSettings
 }
 
 export interface RunStep {
@@ -131,6 +141,8 @@ export interface RunStep {
   continueOnError: boolean
   prompt: string | null
   output: string | null
+  /** git working-tree changes captured after the step (when the working directory is a repository) */
+  diff: string | null
   error: string | null
   exitCode: number | null
   provider: string

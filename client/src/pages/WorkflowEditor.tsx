@@ -28,7 +28,7 @@ export function WorkflowEditorPage() {
   const isNew = !id
   const [loading, setLoading] = useState(!isNew)
   const [agents, setAgents] = useState<Agent[]>([])
-  const [def, setDef] = useState<WorkflowDefinition>({ name: '', description: '', inputs: [], steps: [] })
+  const [def, setDef] = useState<WorkflowDefinition>({ name: '', description: '', inputs: [], steps: [], settings: {} })
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -46,7 +46,7 @@ export function WorkflowEditorPage() {
     api
       .workflow(id)
       .then((w) => {
-        setDef({ name: w.name, description: w.description, inputs: w.inputs, steps: w.steps })
+        setDef({ name: w.name, description: w.description, inputs: w.inputs, steps: w.steps, settings: w.settings ?? {} })
         setUids(w.steps.map(() => crypto.randomUUID()))
         setExpanded(Object.fromEntries(w.steps.map((s) => [s.id, true])))
       })
@@ -110,7 +110,7 @@ export function WorkflowEditorPage() {
     if (!def.name.trim()) return t('common.name') + ' ' + t('common.required')
     if (!def.steps.length) return t('editor.validation.noSteps')
     for (const s of def.steps) {
-      if (!s.agentId) return t('editor.validation.agent', { name: s.name || s.id })
+      if (s.type !== 'approval' && !s.agentId) return t('editor.validation.agent', { name: s.name || s.id })
       if (!s.prompt.trim()) return t('editor.validation.prompt', { name: s.name || s.id })
     }
     return null
@@ -128,7 +128,12 @@ export function WorkflowEditorPage() {
       const payload: WorkflowDefinition = {
         ...def,
         name: def.name.trim(),
-        steps: def.steps.map((s) => ({ ...s, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined })),
+        settings: def.settings?.maxCostUsd ? { maxCostUsd: def.settings.maxCostUsd } : {},
+        steps: def.steps.map((s) =>
+          s.type === 'approval'
+            ? { id: s.id, name: s.name.trim() || s.id, type: 'approval' as const, agentId: '', prompt: s.prompt, dependsOn: s.dependsOn, continueOnError: s.continueOnError || undefined }
+            : { ...s, type: undefined, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined },
+        ),
       }
       const saved = id ? await api.updateWorkflow(id, payload) : await api.createWorkflow(payload)
       setDirty(false)
@@ -145,7 +150,7 @@ export function WorkflowEditorPage() {
   }
 
   const stages = useMemo(() => layoutDag(def.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn }))).stages, [def.steps])
-  const agentName = (aid: string) => agents.find((a) => a.id === aid)?.name ?? '—'
+  const agentName = (s: WorkflowStep) => (s.type === 'approval' ? t('editor.step.type.approval') : (agents.find((a) => a.id === s.agentId)?.name ?? '—'))
 
   if (loading) {
     return (
@@ -221,6 +226,17 @@ export function WorkflowEditorPage() {
             <Field label={t('common.description')}>
               <input className="input" value={def.description} onChange={(e) => update({ description: e.target.value })} />
             </Field>
+            <Field label={t('editor.settings.maxCost')} hint={t('editor.settings.maxCostHint')}>
+              <input
+                className="input max-w-[200px]"
+                type="number"
+                min={0}
+                step={0.5}
+                placeholder="—"
+                value={def.settings?.maxCostUsd ?? ''}
+                onChange={(e) => update({ settings: { ...def.settings, maxCostUsd: e.target.value ? Math.max(0, Number(e.target.value)) || undefined : undefined } })}
+              />
+            </Field>
           </Card>
 
           <Card className="p-5">
@@ -291,7 +307,7 @@ export function WorkflowEditorPage() {
               <span className="text-[11px] text-ink-muted">{t('editor.preview.stages', { n: stages.length })}</span>
             </div>
             <div className="rounded-xl bg-[#f7f7f9] p-2">
-              <PipelineGraph compact nodes={def.steps.map((s) => ({ id: s.id, name: s.name || s.id, agentName: agentName(s.agentId), dependsOn: s.dependsOn }))} />
+              <PipelineGraph compact nodes={def.steps.map((s) => ({ id: s.id, name: s.name || s.id, agentName: agentName(s), dependsOn: s.dependsOn }))} />
             </div>
             {stages.length > 0 && (
               <ol className="mt-3 space-y-1 text-[12px]">
@@ -350,6 +366,7 @@ function StepCard({
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir))
   const agent = agents.find((a) => a.id === step.agentId)
+  const approval = step.type === 'approval'
   const others = steps.filter((s) => s.id !== step.id)
   // steps that (transitively) depend on this one cannot also be its dependencies
   const descendants = new Set<string>()
@@ -383,7 +400,7 @@ function StepCard({
         <button className="flex-1 text-left min-w-0" onClick={onToggle}>
           <span className="font-medium truncate">{step.name || step.id}</span>
           <span className="text-[12px] text-ink-muted ml-2">
-            {agent?.name ?? '—'}
+            {approval ? t('editor.step.type.approval') : (agent?.name ?? '—')}
             {step.dependsOn.length ? ` · ← ${step.dependsOn.join(', ')}` : ''}
           </span>
         </button>
@@ -418,6 +435,14 @@ function StepCard({
             <Field label={t('editor.step.id')}>
               <input className="input mono" value={step.id} onChange={(e) => onChange({ id: ensureId(e.target.value.replace(/[^\w-]/g, ''), others.map((s) => s.id)) })} />
             </Field>
+            <Field label={t('editor.step.type')}>
+              <select className="select" value={approval ? 'approval' : 'agent'} onChange={(e) => onChange({ type: e.target.value === 'approval' ? 'approval' : undefined })}>
+                <option value="agent">{t('editor.step.type.agent')}</option>
+                <option value="approval">{t('editor.step.type.approval')}</option>
+              </select>
+            </Field>
+          </div>
+          {!approval && (
             <Field label={t('editor.step.agent')} required>
               <select className="select" value={step.agentId} onChange={(e) => onChange({ agentId: e.target.value })}>
                 <option value="">—</option>
@@ -428,7 +453,7 @@ function StepCard({
                 ))}
               </select>
             </Field>
-          </div>
+          )}
 
           <Field label={t('editor.step.dependsOn')}>
             {candidates.length === 0 ? (
@@ -452,8 +477,8 @@ function StepCard({
             )}
           </Field>
 
-          <Field label={t('editor.step.prompt')} required>
-            <textarea ref={promptRef} className="textarea min-h-[120px]" placeholder={t('editor.step.promptPlaceholder')} value={step.prompt} onChange={(e) => onChange({ prompt: e.target.value })} />
+          <Field label={approval ? t('editor.step.approvalMessage') : t('editor.step.prompt')} required>
+            <textarea ref={promptRef} className="textarea min-h-[120px]" placeholder={approval ? t('editor.step.approvalPlaceholder') : t('editor.step.promptPlaceholder')} value={step.prompt} onChange={(e) => onChange({ prompt: e.target.value })} />
             {variables.length > 0 && (
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                 <span className="text-[11px] text-ink-muted">{t('editor.step.insert')}:</span>
@@ -466,14 +491,20 @@ function StepCard({
             )}
           </Field>
 
-          <Field label={t('editor.step.expected')}>
-            <input className="input" placeholder={t('editor.step.expectedPlaceholder')} value={step.expectedOutput ?? ''} onChange={(e) => onChange({ expectedOutput: e.target.value })} />
-          </Field>
+          {approval ? (
+            <Toggle checked={!!step.continueOnError} onChange={(v) => onChange({ continueOnError: v })} label={t('editor.step.continueOnError')} />
+          ) : (
+            <Field label={t('editor.step.expected')}>
+              <input className="input" placeholder={t('editor.step.expectedPlaceholder')} value={step.expectedOutput ?? ''} onChange={(e) => onChange({ expectedOutput: e.target.value })} />
+            </Field>
+          )}
 
-          <button type="button" className="text-[12px] text-ink-soft hover:text-ink underline underline-offset-2" onClick={() => setAdvanced((v) => !v)}>
-            {advanced ? '−' : '+'} {t('agents.form.advanced')}
-          </button>
-          {advanced && (
+          {!approval && (
+            <button type="button" className="text-[12px] text-ink-soft hover:text-ink underline underline-offset-2" onClick={() => setAdvanced((v) => !v)}>
+              {advanced ? '−' : '+'} {t('agents.form.advanced')}
+            </button>
+          )}
+          {advanced && !approval && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-xl bg-[#f7f7f9] p-3 items-end">
               <Field label={t('common.model')}>
                 <input className="input" placeholder={t('editor.step.inherit')} value={step.model ?? ''} onChange={(e) => onChange({ model: e.target.value })} />

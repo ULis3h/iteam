@@ -40,7 +40,7 @@ export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): 
     const byLower = new Map(all.map((a) => [a.name.toLowerCase(), a]))
     const agentByName = new Map<string, Agent>()
 
-    for (const name of new Set(file.steps.map((s) => s.agent))) {
+    for (const name of new Set(file.steps.filter((s) => s.type !== 'approval' && s.agent).map((s) => s.agent))) {
       const existing = byLower.get(name.toLowerCase())
       if (existing) {
         agentByName.set(name, existing)
@@ -86,7 +86,8 @@ export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): 
     const steps: WorkflowStep[] = file.steps.map((s) => ({
       id: s.id,
       name: s.name,
-      agentId: agentByName.get(s.agent)!.id,
+      type: s.type,
+      agentId: s.type === 'approval' ? '' : agentByName.get(s.agent)!.id,
       prompt: s.prompt,
       dependsOn: s.dependsOn,
       expectedOutput: s.expectedOutput,
@@ -99,7 +100,7 @@ export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): 
     }))
 
     return tx.workflow.create({
-      data: { name: file.name, description: file.description, inputs: JSON.stringify(file.inputs), steps: JSON.stringify(steps), source: 'import' },
+      data: { name: file.name, description: file.description, inputs: JSON.stringify(file.inputs), steps: JSON.stringify(steps), settings: JSON.stringify(file.settings ?? {}), source: 'import' },
     })
   })
   return { workflow, createdAgents, warnings }
@@ -110,6 +111,7 @@ export const workflowToDefinition = (workflow: Workflow): WorkflowDefinition => 
   description: workflow.description,
   inputs: parseJson<WorkflowInput[]>(workflow.inputs, []),
   steps: parseJson<WorkflowStep[]>(workflow.steps, []),
+  settings: parseJson(workflow.settings, {}),
 })
 
 const compact = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
@@ -121,14 +123,16 @@ const compact = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
  */
 export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, format: 'yaml' | 'json', includeEnv = false): Promise<string> {
   const def = workflowToDefinition(workflow)
-  const agents = await prisma.agent.findMany({ where: { id: { in: [...new Set(def.steps.map((s) => s.agentId))] } }, include: { runner: true } })
+  const agentSteps = def.steps.filter((s) => s.type !== 'approval')
+  const agents = await prisma.agent.findMany({ where: { id: { in: [...new Set(agentSteps.map((s) => s.agentId))] } }, include: { runner: true } })
   const byId = new Map(agents.map((a) => [a.id, a]))
-  const missing = def.steps.filter((s) => !byId.has(s.agentId)).map((s) => s.name)
+  const missing = agentSteps.filter((s) => !byId.has(s.agentId)).map((s) => s.name)
   if (missing.length) throw new Error(`cannot export: step(s) ${missing.map((m) => `"${m}"`).join(', ')} reference a deleted agent; assign an agent in the editor first`)
   const doc = {
     name: def.name,
     description: def.description || undefined,
     inputs: def.inputs.length ? def.inputs : undefined,
+    settings: def.settings && Object.keys(def.settings).length ? def.settings : undefined,
     agents: agents.map((a) =>
       compact({
         name: a.name,
@@ -153,7 +157,8 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
       compact({
         id: s.id,
         name: s.name,
-        agent: byId.get(s.agentId)?.name ?? s.agentId,
+        type: s.type === 'approval' ? 'approval' : undefined,
+        agent: s.type === 'approval' ? undefined : (byId.get(s.agentId)?.name ?? s.agentId),
         dependsOn: s.dependsOn,
         model: s.model,
         effort: s.effort,

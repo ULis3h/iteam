@@ -23,6 +23,8 @@ npm run dev        # 服务端 :3000 + 界面 :5173
 | `ITEAM_MAX_PARALLEL` | 同时执行的最大步骤数 | `4` |
 | `ITEAM_WORK_DIR` | 本地 Agent 的默认工作目录 | 用户主目录 |
 | `ITEAM_RETENTION_DAYS` | 已完成运行的保留天数，0 = 永久 | `0` |
+| `ITEAM_WEBHOOK_URL` | 运行结束 / 等待审批时 POST JSON 到该地址 | 关闭 |
+| `ITEAM_PUBLIC_URL` | Webhook 里链接使用的界面地址 | `http://localhost:PORT` |
 | `DATABASE_URL` | SQLite 文件位置 | `file:./iteam.db` |
 
 ## 2. 准备 Agent CLI

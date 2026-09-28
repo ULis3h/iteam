@@ -5,8 +5,8 @@ export type Location = 'local' | 'remote'
 export const EFFORTS: Effort[] = ['low', 'medium', 'high', 'max']
 export const PROVIDER_IDS: Provider[] = ['claude-code', 'codex', 'gemini', 'custom']
 
-export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
-export type StepStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
+export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled'
+export type StepStatus = 'pending' | 'waiting' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
 
 /** Runtime configuration of an agent, resolved right before a step executes. */
 export interface AgentRuntime {
@@ -37,6 +37,8 @@ export interface JobSpec {
   useOutputFile: boolean
   /** Server-side parser for the CLI's machine-readable output (see parsers.ts). */
   parser: 'none' | 'claude-stream-json' | 'codex-json'
+  /** Record `git diff` of the working tree after the job finishes. */
+  captureDiff?: boolean
 }
 
 export interface JobResult {
@@ -47,6 +49,8 @@ export interface JobResult {
   cancelled?: boolean
   /** Captured output exceeded the cap and only the tail was kept. */
   truncated?: boolean
+  /** Git working-tree changes in cwd after the job (when cwd is inside a repository). */
+  diff?: string
 }
 
 export type LogStream = 'stdout' | 'stderr' | 'system' | 'event'
@@ -69,10 +73,16 @@ export interface WorkflowInput {
   required?: boolean
 }
 
+export type StepType = 'agent' | 'approval'
+
 export interface WorkflowStep {
   id: string
   name: string
+  /** 'agent' (default) runs a CLI agent; 'approval' pauses until a person approves. */
+  type?: StepType
+  /** Required for agent steps; ignored for approval steps. */
   agentId: string
+  /** Agent prompt, or the message shown to the reviewer for approval steps. */
   prompt: string
   dependsOn: string[]
   expectedOutput?: string
@@ -87,9 +97,15 @@ export interface WorkflowStep {
   resumeSessionId?: string
 }
 
+export interface WorkflowSettings {
+  /** Cancel the run once the summed step cost (from the CLIs' own reports) exceeds this amount. */
+  maxCostUsd?: number
+}
+
 export interface WorkflowDefinition {
   name: string
   description: string
   inputs: WorkflowInput[]
   steps: WorkflowStep[]
+  settings?: WorkflowSettings
 }

@@ -1,10 +1,11 @@
 import { Check, Copy, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { Card, Field, PageHeader, Section } from '../components/ui'
+import { Card, Field, PageHeader, Section, Toggle } from '../components/ui'
 import { useApp } from '../lib/app'
 import { getToken } from '../lib/api'
 import { copyText } from '../lib/format'
 import { useT } from '../lib/i18n'
+import { disableNotifications, enableNotifications, notificationsEnabled } from '../lib/notify'
 
 export function SettingsPage() {
   const { t, locale, setLocale } = useT()
@@ -12,6 +13,8 @@ export function SettingsPage() {
   const [token, setToken] = useState('')
   const [copied, setCopied] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [notify, setNotify] = useState(notificationsEnabled())
+  const [notifyMessage, setNotifyMessage] = useState<string | null>(null)
 
   const serverPort = window.location.port === '5173' ? '3000' : window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
   const origin = `${window.location.protocol}//${window.location.hostname}:${serverPort}`
@@ -88,6 +91,27 @@ export function SettingsPage() {
             <button className="btn-secondary btn-sm mt-3" onClick={copy}>
               {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? t('common.copied') : t('common.copy')}
             </button>
+          </Card>
+        </Section>
+
+        <Section title={t('settings.notifications')} description={t('settings.notifications.desc')}>
+          <Card className="p-5 space-y-2 text-[13px]">
+            <Toggle
+              checked={notify}
+              label={t('settings.notifications.enable')}
+              onChange={async (v) => {
+                setNotifyMessage(null)
+                if (!v) {
+                  disableNotifications()
+                  setNotify(false)
+                  return
+                }
+                const result = await enableNotifications()
+                setNotify(result === 'granted')
+                if (result !== 'granted') setNotifyMessage(t(result === 'denied' ? 'settings.notifications.denied' : 'settings.notifications.unsupported'))
+              }}
+            />
+            {notifyMessage && <div className="text-[12px] text-status-cancelled">{notifyMessage}</div>}
           </Card>
         </Section>
 

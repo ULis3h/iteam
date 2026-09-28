@@ -7,6 +7,35 @@ import { StringDecoder } from 'node:string_decoder'
 
 const isWin = process.platform === 'win32'
 const MAX_OUTPUT_BYTES = 512 * 1024
+const MAX_DIFF_BYTES = 200 * 1024
+
+const git = (cwd, args, timeoutMs = 10_000) =>
+  new Promise((resolve) => {
+    let out = ''
+    const child = spawn('git', ['-C', cwd, ...args], { stdio: ['ignore', 'pipe', 'ignore'] })
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
+    child.stdout.on('data', (c) => (out += c.toString()))
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      resolve(code === 0 ? out : null)
+    })
+  })
+
+/** Best-effort snapshot of the working-tree changes in cwd (empty when clean, null when not a repo). */
+export async function captureGitDiff(cwd) {
+  const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'])
+  if (!inside || !inside.trim().startsWith('true')) return null
+  const [stat, diff, untracked] = await Promise.all([git(cwd, ['diff', '--stat']), git(cwd, ['diff']), git(cwd, ['ls-files', '--others', '--exclude-standard'])])
+  const parts = []
+  if (stat?.trim()) parts.push(stat.trim())
+  if (untracked?.trim()) parts.push(`untracked:\n${untracked.trim().split('\n').slice(0, 200).map((f) => `  ${f}`).join('\n')}`)
+  if (diff?.trim()) parts.push(diff.length > MAX_DIFF_BYTES ? `${diff.slice(0, MAX_DIFF_BYTES)}\n… diff truncated (${diff.length} bytes)` : diff.trimEnd())
+  return parts.join('\n\n')
+}
 
 class LineSplitter {
   constructor(emit) {
@@ -112,6 +141,7 @@ export function runJob(job, handlers) {
     const args = (job.args ?? []).map((a) => substitute(a, files, false))
     const stdout = new TailBuffer()
     const stderr = new TailBuffer(64 * 1024)
+    const cwd = job.cwd || process.cwd()
 
     const finish = async (exitCode, error) => {
       if (finished) return
@@ -127,6 +157,7 @@ export function runJob(job, handlers) {
         }
       }
       await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+      const diff = job.captureDiff && existsSync(cwd) ? await captureGitDiff(cwd) : null
       handlers.onDone({
         exitCode,
         output,
@@ -134,11 +165,11 @@ export function runJob(job, handlers) {
         timedOut,
         cancelled,
         truncated: stdout.truncated,
+        diff: diff ?? undefined,
       })
     }
 
     if (cancelled) return finish(null, 'cancelled before start')
-    const cwd = job.cwd || process.cwd()
     if (!existsSync(cwd)) return finish(null, `working directory does not exist on runner: ${cwd}`)
     const spec = spawnSpec(cmd, args, !!job.shell)
     handlers.onLog('system', `$ ${job.shell ? cmd : [cmd, ...args].join(' ')}`)

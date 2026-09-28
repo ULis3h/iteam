@@ -331,4 +331,139 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSW
     expect(run.status).toBe('failed')
     expect(run.steps[0].error).toMatch(/timed out/)
   }, 40000)
+
+  it('parks approval steps in "waiting", resumes on approve and fails on reject (retry re-asks)', async () => {
+    const echo = await prisma.agent.findUniqueOrThrow({ where: { name: 'echo' } })
+    const def: WorkflowDefinition = {
+      name: 'gate',
+      description: '',
+      inputs: [],
+      settings: {},
+      steps: [
+        { id: 'plan', name: 'Plan', agentId: echo.id, prompt: 'plan', dependsOn: [] },
+        { id: 'review', name: 'Review', type: 'approval', agentId: '', prompt: 'Review this: {{steps.plan.output}}', dependsOn: ['plan'] },
+        { id: 'ship', name: 'Ship', agentId: echo.id, prompt: 'note={{steps.review.output}}', dependsOn: ['review'] },
+      ],
+    }
+    const created = await manager.createRun(def, {})
+    expect(created.steps[1].provider).toBe('approval')
+    await manager.start(created.id)
+    const held = await waitFor(created.id, (r) => r.status === 'waiting')
+    const review = held.steps.find((s) => s.key === 'review')!
+    expect(review.status).toBe('waiting')
+    expect(review.prompt).toBe('Review this: OUT:plan')
+    expect(held.steps.find((s) => s.key === 'ship')!.status).toBe('pending')
+    expect(manager.activeSteps()).toBe(0)
+    await expect(manager.approve(created.id, held.steps[0].id, true)).rejects.toThrow(/not waiting/)
+    await manager.approve(created.id, review.id, true, 'looks good')
+    const done = await waitFor(created.id, finished)
+    expect(done.status).toBe('succeeded')
+    expect(done.steps.find((s) => s.key === 'review')!.output).toBe('looks good')
+    expect(done.steps.find((s) => s.key === 'ship')!.output).toBe('OUT:note=looks good')
+
+    // rejection fails the step (and the run); retry asks again
+    const second = await manager.createRun(def, {})
+    await manager.start(second.id)
+    const held2 = await waitFor(second.id, (r) => r.status === 'waiting')
+    await manager.approve(second.id, held2.steps[1].id, false, 'needs work')
+    const rejected = await waitFor(second.id, finished)
+    expect(rejected.status).toBe('failed')
+    expect(rejected.steps[1].error).toBe('rejected: needs work')
+    expect(rejected.steps[2].status).toBe('skipped')
+    await manager.retry(second.id)
+    const held3 = await waitFor(second.id, (r) => r.status === 'waiting')
+    expect(held3.steps[1].status).toBe('waiting')
+    await manager.cancel(second.id)
+    const cancelled = await waitFor(second.id, finished)
+    expect(cancelled.status).toBe('cancelled')
+    expect(cancelled.steps[1].status).toBe('cancelled')
+  })
+
+  it('stops a run once the reported cost exceeds settings.maxCostUsd', async () => {
+    const bin = path.join(dir, 'bin')
+    const oldPath = process.env.PATH
+    process.env.PATH = `${bin}:${oldPath}`
+    try {
+      const agent = await prisma.agent.findUniqueOrThrow({ where: { name: 'claude-stub' } })
+      const def: WorkflowDefinition = {
+        name: 'budget',
+        description: '',
+        inputs: [],
+        settings: { maxCostUsd: 0.07 },
+        steps: [
+          { id: 'a', name: 'A', agentId: agent.id, prompt: 'x', dependsOn: [] },
+          { id: 'b', name: 'B', agentId: agent.id, prompt: 'x', dependsOn: ['a'] },
+          { id: 'c', name: 'C', agentId: agent.id, prompt: 'x', dependsOn: ['b'] },
+        ],
+      }
+      const created = await manager.createRun(def, {})
+      await manager.start(created.id)
+      const run = await waitFor(created.id, finished)
+      expect(run.status).toBe('failed')
+      expect(run.error).toMatch(/budget exceeded: \$0\.100 spent, limit \$0\.070/)
+      expect(run.steps.map((s) => s.status)).toEqual(['succeeded', 'succeeded', 'cancelled'])
+      await logs.flush()
+      const lines = await prisma.runLog.findMany({ where: { stepId: run.steps[0].id } })
+      expect(lines.some((l) => l.line.includes('cost so far $0.050 of $0.070 budget'))).toBe(true)
+    } finally {
+      process.env.PATH = oldPath
+    }
+  })
+
+  it('reruns from a step: it and its descendants execute again, everything else is kept', async () => {
+    const echo = await prisma.agent.findUniqueOrThrow({ where: { name: 'echo' } })
+    const def: WorkflowDefinition = {
+      name: 'chain',
+      description: '',
+      inputs: [],
+      steps: [
+        { id: 'a', name: 'A', agentId: echo.id, prompt: 'a', dependsOn: [] },
+        { id: 'b', name: 'B', agentId: echo.id, prompt: 'b<{{steps.a.output}}>', dependsOn: ['a'] },
+        { id: 'c', name: 'C', agentId: echo.id, prompt: 'c<{{steps.b.output}}>', dependsOn: ['b'] },
+        { id: 'x', name: 'X', agentId: echo.id, prompt: 'x', dependsOn: [] },
+      ],
+    }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const first = await waitFor(created.id, finished)
+    const byKey = (r: typeof first) => Object.fromEntries(r.steps.map((s) => [s.key, s]))
+    const before = byKey(first)
+    await new Promise((r) => setTimeout(r, 20))
+    await manager.rerunFrom(created.id, before.b.id)
+    const second = await waitFor(created.id, finished)
+    const after = byKey(second)
+    expect(second.status).toBe('succeeded')
+    expect(after.a.startedAt).toEqual(before.a.startedAt)
+    expect(after.x.startedAt).toEqual(before.x.startedAt)
+    expect(new Date(after.b.startedAt!).getTime()).toBeGreaterThan(new Date(before.b.startedAt!).getTime())
+    expect(new Date(after.c.startedAt!).getTime()).toBeGreaterThan(new Date(before.c.startedAt!).getTime())
+    expect(after.c.output).toBe('OUT:c<OUT:b<OUT:a>>')
+    await expect(manager.rerunFrom(created.id, 'nope')).rejects.toThrow(/not found/)
+
+    // upstream must have succeeded
+    const soft = await prisma.agent.findUniqueOrThrow({ where: { name: 'soft' } })
+    const failing = await manager.createRun({ ...def, steps: [{ id: 'a', name: 'A', agentId: soft.id, prompt: 'a', dependsOn: [] }, def.steps[1]] }, {})
+    await manager.start(failing.id)
+    const failed = await waitFor(failing.id, finished)
+    await expect(manager.rerunFrom(failing.id, failed.steps[1].id)).rejects.toThrow(/upstream step "A" did not succeed/)
+  })
+
+  it('captures the git working-tree diff of a step that edits a repository', async () => {
+    const repo = path.join(dir, 'repo')
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(repo, { recursive: true })
+    execSync('git init -q && git config user.email t@t && git config user.name t && echo one > file.txt && git add . && git commit -qm init', { cwd: repo, shell: '/bin/bash' })
+    const editor = await makeAgent('editor', `cat >/dev/null; echo two >> file.txt; echo new > added.txt; echo done`, { workDir: repo })
+    const def: WorkflowDefinition = { name: 'diff', description: '', inputs: [], steps: [{ id: 'e', name: 'E', agentId: editor.id, prompt: 'x', dependsOn: [] }] }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished)
+    expect(run.status).toBe('succeeded')
+    expect(run.steps[0].diff).toContain('file.txt | 1 +')
+    expect(run.steps[0].diff).toContain('+two')
+    expect(run.steps[0].diff).toContain('untracked:\n  added.txt')
+    await logs.flush()
+    const lines = await prisma.runLog.findMany({ where: { stepId: run.steps[0].id } })
+    expect(lines.some((l) => l.line.startsWith('changes in working tree: file.txt'))).toBe(true)
+  })
 })

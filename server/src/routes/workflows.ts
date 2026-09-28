@@ -17,9 +17,10 @@ export function workflowRoutes(ctx: AppContext) {
     } catch (err) {
       throw new HttpError(400, (err as Error).message)
     }
-    const ids = [...new Set(parsed.data.steps.map((s) => s.agentId))]
+    const agentSteps = parsed.data.steps.filter((s) => s.type !== 'approval')
+    const ids = [...new Set(agentSteps.map((s) => s.agentId))]
     const found = new Set((await ctx.prisma.agent.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((a) => a.id))
-    const orphan = parsed.data.steps.find((s) => !found.has(s.agentId))
+    const orphan = agentSteps.find((s) => !found.has(s.agentId))
     if (orphan) throw new HttpError(400, `step "${orphan.name}" references an agent that does not exist`)
     return { data: parsed.data, warnings: templateIssues(parsed.data) }
   }

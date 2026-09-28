@@ -4,12 +4,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, EmptyState, ErrorBanner, PageHeader } from '../components/ui'
 import { api } from '../lib/api'
-import { formatDuration, formatTime, statusColor } from '../lib/format'
+import { formatDuration, formatTime, isActive, statusColor } from '../lib/format'
 import { useT } from '../lib/i18n'
 import { useReconnect, useSocketEvent } from '../lib/socket'
 import type { Run, RunStatus, Workflow } from '../types'
 
-const FILTERS: Array<RunStatus | ''> = ['', 'running', 'succeeded', 'failed', 'cancelled']
+const FILTERS: Array<RunStatus | ''> = ['', 'running', 'waiting', 'succeeded', 'failed', 'cancelled']
 
 export function RunsPage() {
   const { t, locale } = useT()
@@ -25,7 +25,7 @@ export function RunsPage() {
 
   const load = useCallback(async () => {
     try {
-      const page = await api.runs({ status: filter === 'running' ? 'running,queued' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE })
+      const page = await api.runs({ status: filter === 'running' ? 'running,queued,waiting' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE })
       setRuns(page)
       setHasMore(page.length === PAGE)
     } catch (err) {
@@ -36,7 +36,7 @@ export function RunsPage() {
     const last = runs[runs.length - 1]
     if (!last) return
     try {
-      const page = await api.runs({ status: filter === 'running' ? 'running,queued' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE, before: last.createdAt })
+      const page = await api.runs({ status: filter === 'running' ? 'running,queued,waiting' : filter || undefined, workflowId: workflowId || undefined, limit: PAGE, before: last.createdAt })
       setRuns((prev) => [...prev, ...page.filter((r) => !prev.some((p) => p.id === r.id))])
       setHasMore(page.length === PAGE)
     } catch (err) {
@@ -114,7 +114,7 @@ export function RunsPage() {
                   ))}
                 </div>
                 <span className="text-[12px] text-ink-soft font-mono w-16 text-right">{formatDuration(run.startedAt, run.finishedAt)}</span>
-                <button className="btn-ghost btn-sm !px-2 hover:!text-status-failed" disabled={run.status === 'running' || run.status === 'queued'} onClick={() => remove(run)}>
+                <button className="btn-ghost btn-sm !px-2 hover:!text-status-failed" disabled={isActive(run.status)} onClick={() => remove(run)}>
                   <Trash2 size={14} />
                 </button>
               </div>

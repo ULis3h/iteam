@@ -102,6 +102,36 @@ export const killTree = (child: ChildProcess, signal: NodeJS.Signals) => {
   }
 }
 
+const MAX_DIFF_BYTES = 200 * 1024
+
+const git = (cwd: string, args: string[], timeoutMs = 10_000): Promise<string | null> =>
+  new Promise((resolve) => {
+    let out = ''
+    const child = spawn('git', ['-C', cwd, ...args], { stdio: ['ignore', 'pipe', 'ignore'] })
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
+    child.stdout.on('data', (c) => (out += c.toString()))
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      resolve(code === 0 ? out : null)
+    })
+  })
+
+/** Best-effort snapshot of the working-tree changes in cwd (empty string when clean, null when not a repo). */
+export async function captureGitDiff(cwd: string): Promise<string | null> {
+  const inside = await git(cwd, ['rev-parse', '--is-inside-work-tree'])
+  if (!inside || !inside.trim().startsWith('true')) return null
+  const [stat, diff, untracked] = await Promise.all([git(cwd, ['diff', '--stat']), git(cwd, ['diff']), git(cwd, ['ls-files', '--others', '--exclude-standard'])])
+  const parts: string[] = []
+  if (stat?.trim()) parts.push(stat.trim())
+  if (untracked?.trim()) parts.push(`untracked:\n${untracked.trim().split('\n').slice(0, 200).map((f) => `  ${f}`).join('\n')}`)
+  if (diff?.trim()) parts.push(diff.length > MAX_DIFF_BYTES ? `${diff.slice(0, MAX_DIFF_BYTES)}\n… diff truncated (${diff.length} bytes)` : diff.trimEnd())
+  return parts.join('\n\n')
+}
+
 /** Run a job as a child process on this machine. */
 export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
   let child: ChildProcess | null = null
@@ -134,6 +164,7 @@ export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
         }
       }
       await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+      const diff = job.captureDiff && existsSync(job.cwd) ? await captureGitDiff(job.cwd) : null
       handlers.onDone({
         exitCode,
         output,
@@ -141,6 +172,7 @@ export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
         timedOut,
         cancelled,
         truncated: stdout.truncated,
+        diff: diff ?? undefined,
       })
     }
 

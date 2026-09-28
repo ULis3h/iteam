@@ -1,0 +1,49 @@
+# 带人工把关的发布流程：实现 → 自检 → 人工审批 → 提交
+# Release with a human gate: implement → self-check → human approval → commit
+name: 人工把关发布
+description: Agent 完成改动并自检后，停下来等你审批，通过后才提交
+settings:
+  maxCostUsd: 5
+
+inputs:
+  - key: repo
+    label: 仓库路径
+    required: true
+  - key: task
+    label: 要完成的改动
+    required: true
+
+agents:
+  - name: 开发者
+    role: 你是严谨的工程师。改动保持最小，完成后运行相关测试，最后用一段话总结改了什么、为什么。
+    provider: claude-code
+    model: sonnet
+    effort: medium
+
+steps:
+  - id: implement
+    name: 实现改动
+    agent: 开发者
+    workDir: "{{inputs.repo}}"
+    prompt: |
+      请完成以下改动，不要提交（不要执行 git commit）：
+      {{inputs.task}}
+    expectedOutput: 改动摘要：文件清单 + 测试结果
+
+  - id: review
+    name: 人工审批
+    type: approval
+    dependsOn: [implement]
+    prompt: |
+      请在步骤详情里查看「工作区变更」，确认以下改动可以提交：
+      {{steps.implement.output}}
+
+  - id: commit
+    name: 提交
+    agent: 开发者
+    dependsOn: [review]
+    workDir: "{{inputs.repo}}"
+    prompt: |
+      审批已通过（备注：{{steps.review.output}}）。
+      请把当前工作区的改动提交到 git，提交信息用一行概括改动，正文引用下面的摘要：
+      {{steps.implement.output}}

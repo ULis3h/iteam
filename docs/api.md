@@ -39,7 +39,7 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/workflows` | 列表（含运行次数与最近一次运行） |
-| POST | `/workflows` | 创建：`{ name, description, inputs[], steps[] }`（步骤用 `agentId`；Agent 必须存在） |
+| POST | `/workflows` | 创建：`{ name, description, inputs[], steps[], settings? }`（步骤用 `agentId`；Agent 必须存在；`type: approval` 的步骤不需要 Agent；`settings.maxCostUsd` 为费用上限） |
 | GET / PUT / DELETE | `/workflows/:id` | 详情 / 更新 / 删除 |
 | POST | `/workflows/validate` | 校验定义，返回执行阶段与模板引用提示 `warnings` |
 | POST | `/workflows/preview` | `{ content }` 预览导入文件：步骤、阶段、将创建的 Agent 及其 CLI/命令、提示 |
@@ -54,10 +54,12 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 | GET | `/runs?status=&workflowId=&limit=&before=` | 列表（`status` 可逗号分隔；`before` 为 ISO 时间游标，`limit` ≤ 200） |
 | POST | `/runs/quick` | `{ agentId, prompt, name?, workDir? }` 单步快速任务 |
 | POST | `/runs/prune` | `{ days }` 删除 N 天前完成的运行 |
-| GET | `/runs/:id` | 详情，含步骤（`costUsd` `inputTokens` `outputTokens` `turns` `sessionId`） |
+| GET | `/runs/:id` | 详情，含步骤（`costUsd` `inputTokens` `outputTokens` `turns` `sessionId` `diff`） |
 | GET | `/runs/:id/logs?stepId=&after=&limit=` | 日志行 `{ stepId, seq, ts, stream, line }`，`stream` ∈ stdout / stderr / system / event；响应头 `X-Has-More` |
 | GET | `/runs/:id/steps/:stepId` | 单个步骤 |
 | POST | `/runs/:id/steps/:stepId/followup` | `{ prompt }` 在同一 CLI 会话里追问（Claude Code），返回新运行 |
+| POST | `/runs/:id/steps/:stepId/approve` | `{ approved, note? }` 通过 / 驳回一个 `waiting` 的审批步骤 |
+| POST | `/runs/:id/steps/:stepId/rerun-from` | 运行结束后，重新执行该步骤及其全部下游（上游须已成功） |
 | POST | `/runs/:id/cancel` | 取消 |
 | POST | `/runs/:id/retry` | 重试失败 / 跳过 / 取消的步骤 |
 | POST | `/runs/:id/rerun` | `{ inputs?, name? }` 用相同定义新建运行 |
@@ -72,11 +74,19 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 | `agent:changed` / `agent:deleted` | Agent |
 | `runner:changed` / `runner:deleted` | Runner |
 | `workflow:changed` / `workflow:deleted` | Workflow |
-| `run:changed` / `run:deleted` | Run（不含步骤） |
+| `run:changed` / `run:deleted` | Run（不含步骤）；状态含 `waiting`（等待审批） |
 | `step:changed` | RunStep；全局广播不含 `prompt` / `output`，订阅了该运行的客户端会收到完整版本 |
 | `run:log` | 日志行；需先 `emit('run:subscribe', runId)`（重连后需重新订阅） |
 
 命名空间 `/runner` 供 Runner 使用（凭证 `ITEAM_RUNNER_TOKEN`）：握手携带 `name`、`capabilities`、`maxJobs`、`activeJobs`；事件 `job:run` → `job:log` / `job:done`，`job:cancel`，`runner:error`。
+
+## Webhook
+
+设置 `ITEAM_WEBHOOK_URL` 后，运行结束或进入等待审批时会 POST：
+
+```json
+{ "event": "finished" | "waiting", "run": { "id", "name", "status", "error", "startedAt", "finishedAt" }, "url": "<ITEAM_PUBLIC_URL>/runs/<id>", "sentAt": "…" }
+```
 
 ## curl 示例
 

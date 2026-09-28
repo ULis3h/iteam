@@ -5,7 +5,7 @@ import type { AgentState, RunStatus, StepStatus } from '../types'
 export function StatusBadge({ status, small }: { status: RunStatus | StepStatus; small?: boolean }) {
   const { t } = useT()
   const color = statusColor(status)
-  const running = status === 'running'
+  const running = status === 'running' || status === 'waiting'
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full font-medium shrink-0 whitespace-nowrap ${small ? 'h-5 px-1.5 text-[11px]' : 'h-6 px-2 text-[12px]'}`}

@@ -26,8 +26,8 @@ iTeam turns the agent CLIs you already have into a team. You define **agents** (
 |---|---|
 | **Agents** | Claude Code, Codex CLI, Gemini CLI, or a custom command. Per-agent model, effort (`low / medium / high / max`), role instructions, working directory, timeout. |
 | **Local or remote** | Local agents run on the server. Remote agents run on any machine that starts the lightweight runner. |
-| **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error. |
-| **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs with readable agent events (tool calls, results), cost and tokens per step, rendered prompt and output, cancel, retry failed steps, run again, follow-up prompts in the same Claude Code session. |
+| **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error; **approval steps** pause the run until a person approves; a **cost limit** stops runaway runs. |
+| **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs with readable agent events (tool calls, results), cost and tokens per step, rendered prompt and output, the git diff each step produced, cancel, retry failed steps, rerun from any step, run again, follow-up prompts in the same Claude Code session; browser notifications and a webhook. |
 | **Import / export** | Workflows are plain YAML or JSON files. Built-in templates, import from the UI (agents are created from the file, preview shows what they will run), export any workflow. |
 | **Quick task** | One prompt on one agent, no workflow needed. |
 

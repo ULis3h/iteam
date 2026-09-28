@@ -1,4 +1,4 @@
-import { ArrowLeft, Copy, Download, Maximize2, MessageSquarePlus, RotateCcw, Square, Trash2, Play } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Download, Maximize2, MessageSquarePlus, RotateCcw, Square, Trash2, Play, X, SkipForward } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LogViewer } from '../components/LogViewer'
@@ -6,9 +6,9 @@ import { PipelineGraph } from '../components/PipelineGraph'
 import { RoadmapTimeline } from '../components/RoadmapTimeline'
 import { RunDialog } from '../components/RunDialog'
 import { StatusBadge } from '../components/StatusBadge'
-import { Card, ErrorBanner, Field, Modal, Spinner } from '../components/ui'
+import { Card, ErrorBanner, Field, InfoBanner, Modal, Spinner } from '../components/ui'
 import { api } from '../lib/api'
-import { copyText, formatDuration, formatTime } from '../lib/format'
+import { copyText, formatDuration, formatTime, isActive, isTerminal } from '../lib/format'
 import { useT } from '../lib/i18n'
 import { subscribeRun, useReconnect, useSocketEvent } from '../lib/socket'
 import type { LogLine, Run, RunStep } from '../types'
@@ -102,7 +102,7 @@ export function RunDetailPage() {
     }, [id, navigate]),
   )
 
-  const active = run?.status === 'running' || run?.status === 'queued'
+  const active = !!run && isActive(run.status)
   useEffect(() => {
     if (!active) return
     const h = setInterval(() => setNow(Date.now()), 1000)
@@ -112,6 +112,12 @@ export function RunDetailPage() {
   const steps = useMemo(() => run?.steps ?? [], [run])
   const selectedStep = steps.find((s) => s.id === selected) ?? null
   const done = steps.filter((s) => s.status === 'succeeded').length
+  const awaiting = steps.find((s) => s.status === 'waiting') ?? null
+  const focusStep = (stepId: string) => {
+    setSelected(stepId)
+    setTab('pipeline')
+    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  }
 
   const act = async (fn: () => Promise<unknown>) => {
     try {
@@ -205,6 +211,16 @@ export function RunDetailPage() {
 
       <ErrorBanner message={error} onClose={() => setError(null)} />
       {run.error && run.status !== 'running' && <ErrorBanner message={run.error} />}
+      {awaiting && (
+        <InfoBanner>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>{t('runDetail.approval.banner', { name: awaiting.name })}</span>
+            <button className="btn-primary btn-sm" onClick={() => focusStep(awaiting.id)}>
+              {t('runDetail.approval.open')}
+            </button>
+          </div>
+        </InfoBanner>
+      )}
 
       {Object.keys(run.inputs).length > 0 && (
         <Card className="p-4 mb-4 text-[12px] flex flex-wrap gap-x-6 gap-y-1">
@@ -229,7 +245,7 @@ export function RunDetailPage() {
         <div className="grid gap-4">
           <Card className="p-4 overflow-hidden">
             <PipelineGraph
-              nodes={steps.map((s) => ({ id: s.key, name: s.name, agentName: s.agentName, meta: s.model || s.provider, dependsOn: s.dependsOn, status: s.status }))}
+              nodes={steps.map((s) => ({ id: s.key, name: s.name, agentName: s.provider === 'approval' ? t('editor.step.type.approval') : s.agentName, meta: s.provider === 'approval' ? undefined : s.model || s.provider, dependsOn: s.dependsOn, status: s.status }))}
               selectedId={selectedStep?.key ?? null}
               onSelect={(key) => {
                 const step = steps.find((s) => s.key === key)
@@ -246,6 +262,11 @@ export function RunDetailPage() {
               <StepDetail
                 step={selectedStep}
                 now={now}
+                runFinished={isTerminal(run.status)}
+                onApprove={(approved, note) => act(() => api.approveStep(run.id, selectedStep.id, approved, note))}
+                onRerunFrom={() => {
+                  if (confirm(t('runDetail.rerunFromConfirm', { name: selectedStep.name }))) void act(() => api.rerunFrom(run.id, selectedStep.id))
+                }}
                 onLogs={() => {
                   setLogStep(selectedStep.id)
                   setTab('logs')
@@ -323,9 +344,37 @@ function TextBlock({ label, text, tone }: { label: string; text: string; tone?: 
   )
 }
 
-function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: number; onLogs: () => void; onFollowUp: (prompt: string) => Promise<void> }) {
+function StepDetail({
+  step,
+  now,
+  runFinished,
+  onLogs,
+  onFollowUp,
+  onApprove,
+  onRerunFrom,
+}: {
+  step: RunStep
+  now: number
+  runFinished: boolean
+  onLogs: () => void
+  onFollowUp: (prompt: string) => Promise<void>
+  onApprove: (approved: boolean, note: string) => Promise<void>
+  onRerunFrom: () => void
+}) {
   const { t, locale } = useT()
   const [showPrompt, setShowPrompt] = useState(false)
+  const [note, setNote] = useState('')
+  const [deciding, setDeciding] = useState(false)
+  const approval = step.provider === 'approval'
+  const decide = async (approved: boolean) => {
+    setDeciding(true)
+    try {
+      await onApprove(approved, note.trim())
+      setNote('')
+    } finally {
+      setDeciding(false)
+    }
+  }
   const [followOpen, setFollowOpen] = useState(false)
   const [followPrompt, setFollowPrompt] = useState('')
   const [followBusy, setFollowBusy] = useState(false)
@@ -339,8 +388,14 @@ function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: num
           <StatusBadge status={step.status} />
         </div>
         <div className="text-[12px] text-ink-muted mt-1">
-          {step.agentName} · {step.provider}
-          {step.model ? ` / ${step.model}` : ''} · {t('common.effort')} {step.effort || '—'} · {step.location === 'remote' ? t('common.remote') : t('common.local')}
+          {approval ? (
+            t('editor.step.type.approval')
+          ) : (
+            <>
+              {step.agentName} · {step.provider}
+              {step.model ? ` / ${step.model}` : ''} · {t('common.effort')} {step.effort || '—'} · {step.location === 'remote' ? t('common.remote') : t('common.local')}
+            </>
+          )}
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
@@ -371,9 +426,28 @@ function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: num
           </>
         )}
       </dl>
+      {step.status === 'waiting' && (
+        <div className="rounded-xl border border-[#d9ccff] bg-[#f6f2ff] p-4 space-y-3">
+          <div>
+            <div className="font-semibold text-[14px]">{t('runDetail.approval.title')}</div>
+            <div className="text-[12px] text-ink-soft mt-0.5">{t('runDetail.approval.hint')}</div>
+          </div>
+          {step.prompt && <pre className="mono whitespace-pre-wrap break-words rounded-lg bg-white/70 p-3 max-h-64 overflow-auto">{step.prompt}</pre>}
+          <textarea className="textarea min-h-[72px] bg-white" placeholder={t('runDetail.approval.note')} value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="flex gap-2">
+            <button className="btn-primary btn-sm" disabled={deciding} onClick={() => void decide(true)}>
+              <Check size={13} /> {t('runDetail.approval.approve')}
+            </button>
+            <button className="btn-danger btn-sm" disabled={deciding} onClick={() => void decide(false)}>
+              <X size={13} /> {t('runDetail.approval.reject')}
+            </button>
+          </div>
+        </div>
+      )}
       {step.error && <TextBlock label={t('runDetail.error')} text={step.error} tone="error" />}
       {step.output && <TextBlock label={t('runDetail.output')} text={step.output} />}
-      {step.prompt && (
+      {step.diff && <TextBlock label={t('runDetail.diff')} text={step.diff} />}
+      {step.prompt && step.status !== 'waiting' && (
         <div>
           <button className="label !mb-1 underline underline-offset-2 hover:text-ink" onClick={() => setShowPrompt((v) => !v)}>
             {showPrompt ? '−' : '+'} {t('runDetail.prompt')}
@@ -388,6 +462,11 @@ function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: num
         {canFollowUp && (
           <button className="btn-primary btn-sm" onClick={() => setFollowOpen(true)}>
             <MessageSquarePlus size={13} /> {t('runDetail.followUp')}
+          </button>
+        )}
+        {runFinished && isTerminal(step.status) && (
+          <button className="btn-secondary btn-sm" onClick={onRerunFrom} title={t('runDetail.rerunFrom')}>
+            <SkipForward size={13} /> {t('runDetail.rerunFrom')}
           </button>
         )}
       </div>

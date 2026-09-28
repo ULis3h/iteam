@@ -13,9 +13,14 @@ export const inputSchema = z.object({
 
 const effortSchema = z.enum(EFFORTS as [string, ...string[]])
 
+export const settingsSchema = z.object({
+  maxCostUsd: z.number().positive().max(100000).optional(),
+})
+
 export const stepFieldsSchema = z.object({
   id: identifier,
   name: z.string().min(1),
+  type: z.enum(['agent', 'approval']).optional(),
   prompt: z.string().min(1),
   dependsOn: z.array(z.string()).default([]),
   expectedOutput: z.string().optional(),
@@ -28,11 +33,13 @@ export const stepFieldsSchema = z.object({
   resumeSessionId: z.string().optional(),
 })
 
+const agentRequired = (s: { type?: string; agentId?: string; agent?: string }) => s.type === 'approval' || !!(s.agentId ?? s.agent)
+
 /** Steps as stored in the database and edited in the UI (agent referenced by id). */
-export const storedStepSchema = stepFieldsSchema.extend({ agentId: z.string().min(1) })
+export const storedStepSchema = stepFieldsSchema.extend({ agentId: z.string().default('') }).refine(agentRequired, { message: 'agent steps need an agent', path: ['agentId'] })
 
 /** Steps as written in an importable file (agent referenced by name). */
-export const fileStepSchema = stepFieldsSchema.extend({ agent: z.string().min(1) })
+export const fileStepSchema = stepFieldsSchema.extend({ agent: z.string().default('') }).refine(agentRequired, { message: 'agent steps need an agent', path: ['agent'] })
 
 export const inlineAgentSchema = z.object({
   name: z.string().min(1).max(80),
@@ -60,6 +67,7 @@ export const workflowBodySchema = z.object({
   description: z.string().max(2000).default(''),
   inputs: z.array(inputSchema).default([]).refine(uniqueInputKeys, { message: 'input keys must be unique' }),
   steps: z.array(storedStepSchema).min(1),
+  settings: settingsSchema.default({}),
 })
 
 export const workflowFileSchema = z.object({
@@ -68,6 +76,7 @@ export const workflowFileSchema = z.object({
   inputs: z.array(inputSchema).default([]).refine(uniqueInputKeys, { message: 'input keys must be unique' }),
   agents: z.array(inlineAgentSchema).default([]),
   steps: z.array(fileStepSchema).min(1),
+  settings: settingsSchema.default({}),
 })
 
 export const agentBodySchema = z.object({
@@ -123,3 +132,8 @@ export type AgentBody = z.infer<typeof agentBodySchema>
 
 export const formatZodError = (err: z.ZodError): string =>
   err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
+
+export const approvalSchema = z.object({
+  approved: z.boolean(),
+  note: z.string().trim().max(20_000).optional(),
+})
