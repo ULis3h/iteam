@@ -20,6 +20,7 @@ const empty: AgentInput = {
   env: {},
   autoApprove: true,
   timeoutSec: 1800,
+  maxConcurrent: 1,
   color: '',
 }
 
@@ -38,6 +39,7 @@ const toAgentInput = (a: Agent): AgentInput => ({
   env: a.env,
   autoApprove: a.autoApprove,
   timeoutSec: a.timeoutSec,
+  maxConcurrent: a.maxConcurrent ?? 1,
   color: a.color,
 })
 
@@ -57,14 +59,14 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
     setForm(initial)
     setExtraArgsText(initial.extraArgs.join('\n'))
     setEnvText(Object.entries(initial.env).map(([k, v]) => `${k}=${v}`).join('\n'))
-    setAdvanced(!!(initial.workDir || initial.extraArgs.length || Object.keys(initial.env).length || !initial.autoApprove))
+    setAdvanced(!!(initial.workDir || initial.extraArgs.length || Object.keys(initial.env).length || !initial.autoApprove || initial.maxConcurrent > 1))
     setError(null)
   }, [open, agent])
 
   const providers = system?.providers ?? []
   const spec = providers.find((p) => p.id === form.provider)
   const onlineRunners = runners.filter((r) => r.status === 'online')
-  const localCli = system?.capabilities.providers[form.provider]?.available ?? true
+  const localCli = system?.capabilities?.providers[form.provider]?.available ?? true
   const update = (patch: Partial<AgentInput>) => setForm((f) => ({ ...f, ...patch }))
 
   const modelOptions = useMemo(() => spec?.models ?? [], [spec])
@@ -222,17 +224,21 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
               <Field label={t('agents.form.extraArgs')}>
                 <textarea className="textarea mono min-h-[64px]" rows={2} value={extraArgsText} onChange={(e) => setExtraArgsText(e.target.value)} placeholder={t('agents.form.extraArgsPlaceholder')} />
               </Field>
-              <Field label={t('agents.form.env')}>
+              <Field label={t('agents.form.env')} hint={agent ? t('agents.form.envHint') : undefined}>
                 <textarea className="textarea mono min-h-[64px]" rows={2} value={envText} onChange={(e) => setEnvText(e.target.value)} placeholder={t('agents.form.envPlaceholder')} />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-3 items-end">
+            <div className="grid grid-cols-2 gap-3">
               <Field label={t('agents.form.timeout')}>
                 <input className="input" type="number" min={30} value={form.timeoutSec} onChange={(e) => update({ timeoutSec: Number(e.target.value) || 1800 })} />
               </Field>
-              <div className="pb-2">
-                <Toggle checked={form.autoApprove} onChange={(v) => update({ autoApprove: v })} label={t('agents.form.autoApprove')} />
-              </div>
+              <Field label={t('agents.form.maxConcurrent')} hint={t('agents.form.maxConcurrentHint')}>
+                <input className="input" type="number" min={1} max={16} value={form.maxConcurrent} onChange={(e) => update({ maxConcurrent: Math.max(1, Math.min(16, Number(e.target.value) || 1)) })} />
+              </Field>
+            </div>
+            <div>
+              <Toggle checked={form.autoApprove} onChange={(v) => update({ autoApprove: v })} label={t('agents.form.autoApprove')} />
+              <p className="text-[11px] text-ink-muted mt-1.5 leading-snug">{t('agents.form.autoApproveHint')}</p>
             </div>
           </div>
         )}

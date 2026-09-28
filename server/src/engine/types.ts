@@ -45,6 +45,8 @@ export interface JobResult {
   error?: string
   timedOut?: boolean
   cancelled?: boolean
+  /** Captured output exceeded the cap and only the tail was kept. */
+  truncated?: boolean
 }
 
 export type LogStream = 'stdout' | 'stderr' | 'system' | 'event'
@@ -79,6 +81,8 @@ export interface WorkflowStep {
   timeoutSec?: number
   retries?: number
   continueOnError?: boolean
+  /** Working directory for this step (overrides the agent's). */
+  workDir?: string
   /** Follow-up steps continue an earlier CLI session instead of starting fresh. */
   resumeSessionId?: string
 }

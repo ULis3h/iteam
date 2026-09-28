@@ -57,7 +57,7 @@ export function RunDetailPage() {
     useCallback((payload: unknown) => {
       const step = payload as RunStep
       if (step.runId !== id) return
-      setRun((prev) => (prev ? { ...prev, steps: prev.steps?.map((s) => (s.id === step.id ? step : s)) } : prev))
+      setRun((prev) => (prev ? { ...prev, steps: prev.steps?.map((s) => (s.id === step.id ? { ...s, ...step } : s)) } : prev))
     }, [id]),
   )
   useSocketEvent(

@@ -9,18 +9,31 @@ export const asyncRoute =
   }
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public details?: unknown) {
     super(message)
   }
 }
 
-export const serializeRunner = (r: Runner) => ({ ...r, capabilities: parseJson<string[]>(r.capabilities, []) })
+/** Placeholder returned instead of agent env values; sending it back keeps the stored value. */
+export const ENV_MASK = '••••••••'
 
-export const serializeAgent = (a: Agent & { runner?: Runner | null }) => ({
+export const maskEnv = (env: Record<string, string>): Record<string, string> => Object.fromEntries(Object.keys(env).map((k) => [k, ENV_MASK]))
+
+/** Merge an incoming env map with the stored one: masked values are kept, others replaced. */
+export const mergeEnv = (stored: Record<string, string>, incoming: Record<string, string>): Record<string, string> =>
+  Object.fromEntries(Object.entries(incoming).map(([k, v]) => [k, v === ENV_MASK ? (stored[k] ?? '') : v]))
+
+export const serializeRunner = (r: Runner, online?: boolean) => ({
+  ...r,
+  status: online === undefined ? r.status : online ? 'online' : 'offline',
+  capabilities: parseJson<string[]>(r.capabilities, []),
+})
+
+export const serializeAgent = (a: Agent & { runner?: Runner | null }, runnerOnline?: boolean) => ({
   ...a,
   extraArgs: parseJson<string[]>(a.extraArgs, []),
-  env: parseJson<Record<string, string>>(a.env, {}),
-  runner: a.runner ? serializeRunner(a.runner) : null,
+  env: maskEnv(parseJson<Record<string, string>>(a.env, {})),
+  runner: a.runner ? serializeRunner(a.runner, runnerOnline) : null,
 })
 
 export const serializeWorkflow = (w: Workflow & { _count?: { runs: number } }) => ({
@@ -29,7 +42,11 @@ export const serializeWorkflow = (w: Workflow & { _count?: { runs: number } }) =
   steps: parseJson(w.steps, []),
 })
 
-export const serializeStep = (s: RunStep) => ({ ...s, dependsOn: parseJson<string[]>(s.dependsOn, []) })
+/** The frozen runtime (which may contain env secrets) never leaves the server. */
+export const serializeStep = (s: RunStep) => {
+  const { runtime: _runtime, ...rest } = s
+  return { ...rest, dependsOn: parseJson<string[]>(s.dependsOn, []) }
+}
 
 export const serializeRun = (r: Run & { steps?: RunStep[]; workflow?: Workflow | null }) => ({
   ...r,

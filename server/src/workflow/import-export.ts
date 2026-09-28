@@ -23,72 +23,86 @@ export const parseWorkflowFile = (content: string): WorkflowFile => {
 export interface ImportResult {
   workflow: Workflow
   createdAgents: Array<{ id: string; name: string; defaulted: boolean }>
+  warnings: string[]
 }
 
-/** Create a workflow from a parsed file; agents are matched by name and created when missing. */
+/**
+ * Create a workflow from a parsed file inside one transaction; agents are matched by
+ * name (case-insensitive) and created when missing.
+ */
 export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): Promise<ImportResult> {
   const createdAgents: ImportResult['createdAgents'] = []
+  const warnings: string[] = []
   const inline = new Map(file.agents.map((a) => [a.name, a]))
-  const agentByName = new Map<string, Agent>()
 
-  for (const name of new Set(file.steps.map((s) => s.agent))) {
-    const existing = await prisma.agent.findUnique({ where: { name } })
-    if (existing) {
-      agentByName.set(name, existing)
-      continue
+  const workflow = await prisma.$transaction(async (tx) => {
+    const all = await tx.agent.findMany()
+    const byLower = new Map(all.map((a) => [a.name.toLowerCase(), a]))
+    const agentByName = new Map<string, Agent>()
+
+    for (const name of new Set(file.steps.map((s) => s.agent))) {
+      const existing = byLower.get(name.toLowerCase())
+      if (existing) {
+        agentByName.set(name, existing)
+        continue
+      }
+      const spec = inline.get(name)
+      let runnerId: string | null = null
+      let location = spec?.location ?? 'local'
+      if (spec?.runner) {
+        const runner = await tx.runner.findUnique({ where: { name: spec.runner } })
+        runnerId = runner?.id ?? null
+        if (runnerId) location = 'remote'
+      }
+      if (location === 'remote' && !runnerId) {
+        warnings.push(`agent "${name}": runner "${spec?.runner ?? ''}" is unknown here; created as a local agent`)
+        location = 'local'
+      }
+      const created = await tx.agent.create({
+        data: {
+          name,
+          description: spec?.description ?? '',
+          role: spec?.role ?? '',
+          location,
+          runnerId: location === 'remote' ? runnerId : null,
+          provider: spec?.provider ?? 'claude-code',
+          model: spec?.model ?? '',
+          effort: spec?.effort ?? 'medium',
+          workDir: spec?.workDir ?? '',
+          command: spec?.command ?? '',
+          extraArgs: JSON.stringify(spec?.extraArgs ?? []),
+          env: JSON.stringify(spec?.env ?? {}),
+          autoApprove: spec?.autoApprove ?? true,
+          timeoutSec: spec?.timeoutSec ?? 1800,
+          maxConcurrent: spec?.maxConcurrent ?? 1,
+          color: spec?.color ?? '',
+        },
+      })
+      agentByName.set(name, created)
+      byLower.set(name.toLowerCase(), created)
+      createdAgents.push({ id: created.id, name, defaulted: !spec })
     }
-    const spec = inline.get(name)
-    let runnerId: string | null = null
-    if (spec?.runner) {
-      const runner = await prisma.runner.findUnique({ where: { name: spec.runner } })
-      runnerId = runner?.id ?? null
-    }
-    const created = await prisma.agent.create({
-      data: {
-        name,
-        description: spec?.description ?? '',
-        role: spec?.role ?? '',
-        location: spec?.location ?? (runnerId ? 'remote' : 'local'),
-        runnerId,
-        provider: spec?.provider ?? 'claude-code',
-        model: spec?.model ?? '',
-        effort: spec?.effort ?? 'medium',
-        workDir: spec?.workDir ?? '',
-        command: spec?.command ?? '',
-        extraArgs: JSON.stringify(spec?.extraArgs ?? []),
-        env: JSON.stringify(spec?.env ?? {}),
-        autoApprove: spec?.autoApprove ?? true,
-        timeoutSec: spec?.timeoutSec ?? 1800,
-      },
+
+    const steps: WorkflowStep[] = file.steps.map((s) => ({
+      id: s.id,
+      name: s.name,
+      agentId: agentByName.get(s.agent)!.id,
+      prompt: s.prompt,
+      dependsOn: s.dependsOn,
+      expectedOutput: s.expectedOutput,
+      model: s.model,
+      effort: s.effort as WorkflowStep['effort'],
+      timeoutSec: s.timeoutSec,
+      retries: s.retries,
+      continueOnError: s.continueOnError,
+      workDir: s.workDir,
+    }))
+
+    return tx.workflow.create({
+      data: { name: file.name, description: file.description, inputs: JSON.stringify(file.inputs), steps: JSON.stringify(steps), source: 'import' },
     })
-    agentByName.set(name, created)
-    createdAgents.push({ id: created.id, name, defaulted: !spec })
-  }
-
-  const steps: WorkflowStep[] = file.steps.map((s) => ({
-    id: s.id,
-    name: s.name,
-    agentId: agentByName.get(s.agent)!.id,
-    prompt: s.prompt,
-    dependsOn: s.dependsOn,
-    expectedOutput: s.expectedOutput,
-    model: s.model,
-    effort: s.effort as WorkflowStep['effort'],
-    timeoutSec: s.timeoutSec,
-    retries: s.retries,
-    continueOnError: s.continueOnError,
-  }))
-
-  const workflow = await prisma.workflow.create({
-    data: {
-      name: file.name,
-      description: file.description,
-      inputs: JSON.stringify(file.inputs),
-      steps: JSON.stringify(steps),
-      source: 'import',
-    },
   })
-  return { workflow, createdAgents }
+  return { workflow, createdAgents, warnings }
 }
 
 export const workflowToDefinition = (workflow: Workflow): WorkflowDefinition => ({
@@ -101,11 +115,16 @@ export const workflowToDefinition = (workflow: Workflow): WorkflowDefinition => 
 const compact = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
   Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== '' && v !== null && !(Array.isArray(v) && !v.length))) as Partial<T>
 
-/** Serialize a workflow (and the agents it uses) to a portable YAML/JSON document. */
-export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, format: 'yaml' | 'json'): Promise<string> {
+/**
+ * Serialize a workflow (and the agents it uses) to a portable YAML/JSON document.
+ * Agent env values are omitted unless includeEnv is set (they usually hold API keys).
+ */
+export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, format: 'yaml' | 'json', includeEnv = false): Promise<string> {
   const def = workflowToDefinition(workflow)
   const agents = await prisma.agent.findMany({ where: { id: { in: [...new Set(def.steps.map((s) => s.agentId))] } }, include: { runner: true } })
   const byId = new Map(agents.map((a) => [a.id, a]))
+  const missing = def.steps.filter((s) => !byId.has(s.agentId)).map((s) => s.name)
+  if (missing.length) throw new Error(`cannot export: step(s) ${missing.map((m) => `"${m}"`).join(', ')} reference a deleted agent; assign an agent in the editor first`)
   const doc = {
     name: def.name,
     description: def.description || undefined,
@@ -123,9 +142,11 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
         workDir: a.workDir,
         command: a.command,
         extraArgs: parseJson<string[]>(a.extraArgs, []),
-        env: Object.keys(parseJson<Record<string, string>>(a.env, {})).length ? parseJson(a.env, {}) : undefined,
+        env: includeEnv && Object.keys(parseJson<Record<string, string>>(a.env, {})).length ? parseJson(a.env, {}) : undefined,
         autoApprove: a.autoApprove ? undefined : false,
         timeoutSec: a.timeoutSec !== 1800 ? a.timeoutSec : undefined,
+        maxConcurrent: a.maxConcurrent > 1 ? a.maxConcurrent : undefined,
+        color: a.color,
       }),
     ),
     steps: def.steps.map((s) =>
@@ -139,6 +160,7 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
         timeoutSec: s.timeoutSec,
         retries: s.retries,
         continueOnError: s.continueOnError || undefined,
+        workDir: s.workDir,
         expectedOutput: s.expectedOutput,
         prompt: s.prompt,
       }),

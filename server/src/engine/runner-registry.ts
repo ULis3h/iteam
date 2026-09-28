@@ -3,6 +3,7 @@ import type { JobHandle, JobHandlers, JobResult, JobSpec, LogStream } from './ty
 
 interface PendingJob {
   runnerId: string
+  socketId: string
   handlers: JobHandlers
 }
 
@@ -11,26 +12,28 @@ export class RunnerRegistry {
   private sockets = new Map<string, Socket>()
   private jobs = new Map<string, PendingJob>()
 
+  /** Register a runner connection; a previous connection with the same name is superseded and its jobs failed. */
   attach(runnerId: string, socket: Socket) {
     const previous = this.sockets.get(runnerId)
-    if (previous && previous.id !== socket.id) previous.disconnect(true)
     this.sockets.set(runnerId, socket)
+    if (previous && previous.id !== socket.id) {
+      this.failJobs((job) => job.socketId === previous.id, 'runner reconnected while the job was running')
+      previous.disconnect(true)
+    }
   }
 
   detach(runnerId: string, socketId: string) {
     const current = this.sockets.get(runnerId)
-    if (!current || current.id !== socketId) return
-    this.sockets.delete(runnerId)
-    for (const [jobId, job] of this.jobs) {
-      if (job.runnerId === runnerId) {
-        this.jobs.delete(jobId)
-        job.handlers.onDone({ exitCode: null, output: '', error: 'runner disconnected' })
-      }
-    }
+    if (current && current.id === socketId) this.sockets.delete(runnerId)
+    this.failJobs((job) => job.socketId === socketId, 'runner disconnected')
   }
 
   isOnline(runnerId: string | null | undefined): boolean {
     return !!runnerId && this.sockets.has(runnerId)
+  }
+
+  onlineIds(): string[] {
+    return [...this.sockets.keys()]
   }
 
   dispatch(runnerId: string, job: JobSpec, handlers: JobHandlers): JobHandle {
@@ -39,20 +42,25 @@ export class RunnerRegistry {
       queueMicrotask(() => handlers.onDone({ exitCode: null, output: '', error: 'runner is offline' }))
       return { cancel: () => undefined }
     }
-    this.jobs.set(job.id, { runnerId, handlers })
+    this.jobs.set(job.id, { runnerId, socketId: socket.id, handlers })
     socket.emit('job:run', job)
     return {
-      cancel: () => socket.emit('job:cancel', { jobId: job.id }),
+      cancel: () => {
+        const current = this.sockets.get(runnerId)
+        current?.emit('job:cancel', { jobId: job.id })
+      },
     }
   }
 
-  handleLog(jobId: string, stream: LogStream, line: string) {
-    this.jobs.get(jobId)?.handlers.onLog(stream, line)
+  /** Only the socket a job was dispatched to may report on it. */
+  handleLog(socketId: string, jobId: string, stream: LogStream, line: string) {
+    const job = this.jobs.get(jobId)
+    if (job && job.socketId === socketId) job.handlers.onLog(stream, line)
   }
 
-  handleDone(jobId: string, result: JobResult) {
+  handleDone(socketId: string, jobId: string, result: JobResult) {
     const job = this.jobs.get(jobId)
-    if (!job) return
+    if (!job || job.socketId !== socketId) return
     this.jobs.delete(jobId)
     job.handlers.onDone(result)
   }
@@ -61,5 +69,14 @@ export class RunnerRegistry {
     let n = 0
     for (const job of this.jobs.values()) if (job.runnerId === runnerId) n++
     return n
+  }
+
+  private failJobs(match: (job: PendingJob) => boolean, error: string) {
+    for (const [jobId, job] of this.jobs) {
+      if (match(job)) {
+        this.jobs.delete(jobId)
+        job.handlers.onDone({ exitCode: null, output: '', error })
+      }
+    }
   }
 }

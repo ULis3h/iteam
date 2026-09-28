@@ -3,14 +3,19 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { StringDecoder } from 'node:string_decoder'
+
+const isWin = process.platform === 'win32'
+const MAX_OUTPUT_BYTES = 512 * 1024
 
 class LineSplitter {
   constructor(emit) {
     this.emit = emit
     this.rest = ''
+    this.decoder = new StringDecoder('utf8')
   }
   push(chunk) {
-    this.rest += chunk.toString()
+    this.rest += typeof chunk === 'string' ? chunk : this.decoder.write(chunk)
     let idx
     while ((idx = this.rest.indexOf('\n')) >= 0) {
       this.emit(this.rest.slice(0, idx).replace(/\r$/, ''))
@@ -18,18 +23,63 @@ class LineSplitter {
     }
   }
   flush() {
+    this.rest += this.decoder.end()
     if (this.rest) this.emit(this.rest)
     this.rest = ''
   }
 }
 
-const substitute = (value, files) =>
-  value.replace(/\{\{\s*promptFile\s*\}\}/g, files.promptFile).replace(/\{\{\s*outputFile\s*\}\}/g, files.outputFile)
+class TailBuffer {
+  constructor(limit = MAX_OUTPUT_BYTES) {
+    this.limit = limit
+    this.lines = []
+    this.bytes = 0
+    this.truncated = false
+  }
+  push(line) {
+    this.lines.push(line)
+    this.bytes += line.length + 1
+    while (this.bytes > this.limit && this.lines.length > 1) {
+      this.bytes -= this.lines.shift().length + 1
+      this.truncated = true
+    }
+  }
+  text() {
+    return this.lines.join('\n').trim()
+  }
+  tail(n) {
+    return this.lines.slice(-n).join('\n').trim()
+  }
+}
+
+const shellQuote = (value) => (isWin ? `"${value.replace(/(["%])/g, '^$1')}"` : `'${value.replace(/'/g, `'\\''`)}'`)
+const fill = (text, name, value) => text.replace(new RegExp(`\\{\\{\\s*${name}\\s*\\}\\}`, 'g'), () => value)
+const substitute = (value, files, shell) => {
+  const q = (p) => (shell ? shellQuote(p) : p)
+  return fill(fill(value, 'promptFile', q(files.promptFile)), 'outputFile', q(files.outputFile))
+}
+
+/** Environment for agent processes: the runner's own credentials are removed. */
+const childEnv = (extra) => {
+  const env = {}
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v === undefined || k.startsWith('ITEAM_')) continue
+    env[k] = v
+  }
+  return { ...env, ...(extra ?? {}) }
+}
+
+const spawnSpec = (cmd, args, shell) => {
+  if (shell) return { file: cmd, args: [], shell: true }
+  if (!isWin) return { file: cmd, args, shell: false }
+  const quoted = [cmd, ...args].map((a) => (/[\s"&|<>^%]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a)).join(' ')
+  return { file: 'cmd.exe', args: ['/d', '/s', '/c', `"${quoted}"`], shell: false }
+}
 
 const killTree = (child, signal) => {
   if (!child.pid) return
   try {
-    if (process.platform === 'win32') child.kill(signal)
+    if (isWin) spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' }).on('error', () => child.kill())
     else process.kill(-child.pid, signal)
   } catch {
     try {
@@ -55,20 +105,20 @@ export function runJob(job, handlers) {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'iteam-'))
     const files = { promptFile: path.join(dir, 'prompt.md'), outputFile: path.join(dir, 'output.txt') }
     await writeFile(files.promptFile, job.stdin ?? '', 'utf8')
-    const cmd = substitute(job.cmd, files)
-    const args = (job.args ?? []).map((a) => substitute(a, files))
-    const stdout = []
-    const stderr = []
+    const cmd = substitute(job.cmd, files, !!job.shell)
+    const args = (job.args ?? []).map((a) => substitute(a, files, false))
+    const stdout = new TailBuffer()
+    const stderr = new TailBuffer(64 * 1024)
 
     const finish = async (exitCode, error) => {
       if (finished) return
       finished = true
       if (timer) clearTimeout(timer)
-      let output = stdout.join('\n').trim()
+      let output = stdout.text()
       if (job.useOutputFile) {
         try {
           const fromFile = (await readFile(files.outputFile, 'utf8')).trim()
-          if (fromFile) output = fromFile
+          if (fromFile) output = fromFile.length > MAX_OUTPUT_BYTES ? fromFile.slice(-MAX_OUTPUT_BYTES) : fromFile
         } catch {
           /* fall back to stdout */
         }
@@ -77,25 +127,28 @@ export function runJob(job, handlers) {
       handlers.onDone({
         exitCode,
         output,
-        error: error ?? (exitCode === 0 ? undefined : stderr.slice(-20).join('\n').trim() || `exit code ${exitCode}`),
+        error: error ?? (exitCode === 0 ? undefined : stderr.tail(20) || `exit code ${exitCode}`),
         timedOut,
         cancelled,
+        truncated: stdout.truncated,
       })
     }
 
     if (cancelled) return finish(null, 'cancelled before start')
     const cwd = job.cwd || process.cwd()
     if (!existsSync(cwd)) return finish(null, `working directory does not exist on runner: ${cwd}`)
+    const spec = spawnSpec(cmd, args, !!job.shell)
     handlers.onLog('system', `$ ${job.shell ? cmd : [cmd, ...args].join(' ')}`)
     handlers.onLog('system', `cwd: ${cwd} (runner ${os.hostname()})`)
 
     try {
-      child = spawn(cmd, args, {
+      child = spawn(spec.file, spec.args, {
         cwd,
-        env: { ...process.env, ...(job.env ?? {}) },
-        shell: !!job.shell,
+        env: childEnv(job.env),
+        shell: spec.shell,
         stdio: ['pipe', 'pipe', 'pipe'],
-        detached: process.platform !== 'win32',
+        detached: !isWin,
+        windowsVerbatimArguments: isWin && !spec.shell,
       })
     } catch (err) {
       return finish(null, err.message)
@@ -128,7 +181,7 @@ export function runJob(job, handlers) {
         timedOut = true
         handlers.onLog('system', `timeout (${job.timeoutSec}s) reached, terminating`)
         killTree(child, 'SIGTERM')
-        setTimeout(() => child && killTree(child, 'SIGKILL'), 5000)
+        setTimeout(() => child && !finished && killTree(child, 'SIGKILL'), 5000).unref()
       }, job.timeoutSec * 1000)
     }
   }
@@ -140,7 +193,7 @@ export function runJob(job, handlers) {
       cancelled = true
       if (child && !finished) {
         killTree(child, 'SIGTERM')
-        setTimeout(() => child && !finished && killTree(child, 'SIGKILL'), 5000)
+        setTimeout(() => child && !finished && killTree(child, 'SIGKILL'), 5000).unref()
       }
     },
   }

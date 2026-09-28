@@ -43,6 +43,7 @@ model Agent {
   env         String   @default("{}")          // JSON Record<string,string>
   autoApprove Boolean  @default(true)
   timeoutSec  Int      @default(1800)
+  maxConcurrent Int    @default(1)             // steps this agent may run at the same time
   color       String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -112,6 +113,7 @@ model RunStep {
   effort          String    @default("")
   location        String    @default("local")
   runnerId        String?
+  runtime         String    @default("{}") // JSON AgentRuntime frozen at run creation (never sent to clients)
   sessionId       String?   // CLI session / thread id (enables follow-ups)
   costUsd         Float?
   inputTokens     Int?

@@ -94,17 +94,23 @@ describe('RunManager', () => {
     await expect(manager.createRun({ ...def, inputs: [], steps: [{ ...def.steps[0], agentId: 'nope' }] }, {})).rejects.toThrow(/missing agent/)
   })
 
-  it('retries a flaky step, skips downstream of a hard failure, honours continueOnError', async () => {
-    const fail = await makeAgent('fail', `cat >/dev/null; echo boom >&2; exit 3`)
+  it('retries a flaky step with backoff, skips downstream of a hard failure, honours continueOnError', async () => {
+    // a command that fails until a marker file exists (created on the first failure)
+    const marker = (name: string) => path.join(dir, `marker-${name}`)
+    const flaky = (name: string) => `cat >/dev/null; if [ -f '${marker(name)}' ]; then printf fixed; else touch '${marker(name)}'; echo boom >&2; exit 3; fi`
+    const hard = await makeAgent('hard', flaky('hard'))
+    const auto = await makeAgent('auto', flaky('auto'))
+    const soft = await makeAgent('soft', `cat >/dev/null; echo nope >&2; exit 1`)
     const echo = await prisma.agent.findUniqueOrThrow({ where: { name: 'echo' } })
     const def: WorkflowDefinition = {
       name: 'failures',
       description: '',
       inputs: [],
       steps: [
-        { id: 'bad', name: 'Bad', agentId: fail.id, prompt: 'x', dependsOn: [], retries: 1 },
+        { id: 'bad', name: 'Bad', agentId: hard.id, prompt: 'x', dependsOn: [] },
         { id: 'after-bad', name: 'After bad', agentId: echo.id, prompt: 'y', dependsOn: ['bad'] },
-        { id: 'soft', name: 'Soft', agentId: fail.id, prompt: 'x', dependsOn: [], continueOnError: true },
+        { id: 'auto', name: 'Auto retry', agentId: auto.id, prompt: 'x', dependsOn: [], retries: 1 },
+        { id: 'soft', name: 'Soft', agentId: soft.id, prompt: 'x', dependsOn: [], continueOnError: true },
         { id: 'after-soft', name: 'After soft', agentId: echo.id, prompt: 'got:{{steps.soft.output}}', dependsOn: ['soft'] },
       ],
     }
@@ -114,24 +120,32 @@ describe('RunManager', () => {
     const byKey = Object.fromEntries(run.steps.map((s) => [s.key, s]))
     expect(run.status).toBe('failed')
     expect(byKey.bad.status).toBe('failed')
-    expect(byKey.bad.attempt).toBe(2)
+    expect(byKey.bad.attempt).toBe(1)
     expect(byKey.bad.exitCode).toBe(3)
     expect(byKey.bad.error).toContain('boom')
     expect(byKey['after-bad'].status).toBe('skipped')
+    expect(byKey.auto.status).toBe('succeeded')
+    expect(byKey.auto.attempt).toBe(2)
+    expect(byKey.auto.output).toBe('fixed')
     expect(byKey.soft.status).toBe('failed')
     expect(byKey['after-soft'].status).toBe('succeeded')
     expect(byKey['after-soft'].output).toBe('OUT:got:')
     expect(run.error).toContain('Bad')
+    await logs.flush()
+    const autoLines = await prisma.runLog.findMany({ where: { stepId: byKey.auto.id } })
+    expect(autoLines.some((l) => /retrying in 1s/.test(l.line))).toBe(true)
 
-    // retry resets failed/skipped steps only
-    await prisma.agent.update({ where: { id: fail.id }, data: { command: `printf 'fixed'; cat >/dev/null` } })
+    // the run's agent configuration is frozen: editing the agent must not change the retry
+    await prisma.agent.update({ where: { id: hard.id }, data: { command: `printf never; cat >/dev/null` } })
     await manager.retry(created.id)
     const retried = await waitFor(created.id, finished)
     const again = Object.fromEntries(retried.steps.map((s) => [s.key, s]))
     expect(retried.status).toBe('succeeded')
     expect(again.bad.status).toBe('succeeded')
+    expect(again.bad.output).toBe('fixed') // marker exists now; frozen command, not "never"
     expect(again['after-bad'].status).toBe('succeeded')
     expect(again['after-soft'].attempt).toBe(1) // untouched
+    expect(again.auto.attempt).toBe(2) // untouched
   })
 
   it('cancels running steps and marks pending steps cancelled', async () => {
@@ -207,6 +221,89 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSW
     } finally {
       process.env.PATH = oldPath
     }
+  })
+
+  it('does not starve a second run when the global slot cap is exhausted', async () => {
+    const { config } = await import('../src/config.js')
+    const original = config.maxParallel
+    config.maxParallel = 1
+    try {
+      const slow = await makeAgent('slow1', `cat >/dev/null; sleep 1; echo a`, { maxConcurrent: 4 })
+      const def = (n: string): WorkflowDefinition => ({ name: n, description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: slow.id, prompt: 'x', dependsOn: [] }] })
+      const a = await manager.createRun(def('A'), {})
+      const b = await manager.createRun(def('B'), {})
+      await manager.start(a.id)
+      await manager.start(b.id)
+      const [ra, rb] = await Promise.all([waitFor(a.id, finished, 15000), waitFor(b.id, finished, 15000)])
+      expect(ra.status).toBe('succeeded')
+      expect(rb.status).toBe('succeeded')
+      // B could only start after A released the single slot
+      expect(new Date(rb.steps[0].startedAt!).getTime()).toBeGreaterThanOrEqual(new Date(ra.steps[0].finishedAt!).getTime() - 50)
+    } finally {
+      config.maxParallel = original
+    }
+  })
+
+  it('serialises steps of the same agent according to maxConcurrent', async () => {
+    const serial = await makeAgent('serial', `cat >/dev/null; sleep 0.6; echo ok`)
+    const def: WorkflowDefinition = {
+      name: 'serial',
+      description: '',
+      inputs: [],
+      steps: [
+        { id: 'p', name: 'P', agentId: serial.id, prompt: 'x', dependsOn: [] },
+        { id: 'q', name: 'Q', agentId: serial.id, prompt: 'x', dependsOn: [] },
+      ],
+    }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished, 15000)
+    expect(run.status).toBe('succeeded')
+    const [p, q] = run.steps
+    const overlap = Math.min(new Date(p.finishedAt!).getTime(), new Date(q.finishedAt!).getTime()) - Math.max(new Date(p.startedAt!).getTime(), new Date(q.startedAt!).getTime())
+    expect(overlap).toBeLessThanOrEqual(50)
+  })
+
+  it('ignores the late result of a cancelled process after a retry started a new attempt', async () => {
+    // process ignores SIGTERM for a while so its exit arrives after the retry has started
+    const stubborn = await makeAgent('stubborn', `cat >/dev/null; trap '' TERM; sleep 2; echo late-result`, { timeoutSec: 30 })
+    const def: WorkflowDefinition = { name: 'stale', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: stubborn.id, prompt: 'x', dependsOn: [] }] }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    await waitFor(created.id, (r) => r.steps[0].status === 'running')
+    await manager.cancel(created.id)
+    expect((await waitFor(created.id, finished)).status).toBe('cancelled')
+    // retry waits for the old process (bounded), then runs a fresh attempt that must not be clobbered
+    await manager.retry(created.id)
+    const run = await waitFor(created.id, finished, 20000)
+    expect(run.status).toBe('succeeded')
+    expect(run.steps[0].output).toBe('late-result')
+    expect(run.steps[0].attempt).toBe(1)
+  }, 30000)
+
+  it('honours a per-step working directory (quick tasks)', async () => {
+    const pwd = await makeAgent('pwd', `cat >/dev/null; pwd`)
+    const sub = path.join(dir, 'workspace-x')
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(sub, { recursive: true })
+    const def: WorkflowDefinition = { name: 'cwd', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: pwd.id, prompt: 'x', dependsOn: [], workDir: sub }] }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished)
+    expect(run.steps[0].output).toBe(sub)
+  })
+
+  it('keeps multi-byte UTF-8 intact across chunk boundaries and strips orchestrator secrets from the env', async () => {
+    process.env.ITEAM_TOKEN = 'secret-token'
+    const zh = await makeAgent('zh', `cat >/dev/null; printf '中文输出' | head -c 4; sleep 0.1; printf '中文输出' | tail -c +5; echo; echo "TOKEN=[\${ITEAM_TOKEN:-}] DB=[\${DATABASE_URL:-}]"`, { env: JSON.stringify({ MY_KEY: 'v1' }) })
+    const def: WorkflowDefinition = { name: 'utf8', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: zh.id, prompt: 'x', dependsOn: [] }] }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished)
+    expect(run.steps[0].output).toContain('中文输出')
+    expect(run.steps[0].output).not.toContain('\uFFFD')
+    expect(run.steps[0].output).toContain('TOKEN=[] DB=[]')
+    delete process.env.ITEAM_TOKEN
   })
 
   it('times out long-running steps', async () => {

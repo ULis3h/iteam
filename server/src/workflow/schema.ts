@@ -24,6 +24,7 @@ export const stepFieldsSchema = z.object({
   timeoutSec: z.number().int().positive().max(86400).optional(),
   retries: z.number().int().min(0).max(5).optional(),
   continueOnError: z.boolean().optional(),
+  workDir: z.string().max(1024).optional(),
   resumeSessionId: z.string().optional(),
 })
 
@@ -47,26 +48,30 @@ export const inlineAgentSchema = z.object({
   extraArgs: z.array(z.string()).optional(),
   env: z.record(z.string()).optional(),
   autoApprove: z.boolean().optional(),
-  timeoutSec: z.number().int().positive().optional(),
+  timeoutSec: z.number().int().positive().max(86400).optional(),
+  maxConcurrent: z.number().int().min(1).max(16).optional(),
+  color: z.string().max(32).optional(),
 })
 
+const uniqueInputKeys = (inputs: Array<{ key: string }>) => new Set(inputs.map((i) => i.key)).size === inputs.length
+
 export const workflowBodySchema = z.object({
-  name: z.string().min(1).max(120),
-  description: z.string().default(''),
-  inputs: z.array(inputSchema).default([]),
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(2000).default(''),
+  inputs: z.array(inputSchema).default([]).refine(uniqueInputKeys, { message: 'input keys must be unique' }),
   steps: z.array(storedStepSchema).min(1),
 })
 
 export const workflowFileSchema = z.object({
-  name: z.string().min(1).max(120),
-  description: z.string().default(''),
-  inputs: z.array(inputSchema).default([]),
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(2000).default(''),
+  inputs: z.array(inputSchema).default([]).refine(uniqueInputKeys, { message: 'input keys must be unique' }),
   agents: z.array(inlineAgentSchema).default([]),
   steps: z.array(fileStepSchema).min(1),
 })
 
 export const agentBodySchema = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().trim().min(1).max(80),
   description: z.string().default(''),
   role: z.string().default(''),
   location: z.enum(['local', 'remote']).default('local'),
@@ -80,8 +85,38 @@ export const agentBodySchema = z.object({
   env: z.record(z.string()).default({}),
   autoApprove: z.boolean().default(true),
   timeoutSec: z.number().int().positive().max(86400).default(1800),
-  color: z.string().default(''),
+  maxConcurrent: z.number().int().min(1).max(16).default(1),
+  color: z.string().max(32).default(''),
 })
+
+export const runBodySchema = z.object({
+  inputs: z.record(z.string().max(200_000)).optional(),
+  name: z.string().trim().max(120).optional(),
+})
+
+export const quickRunSchema = z.object({
+  agentId: z.string().min(1),
+  prompt: z.string().trim().min(1).max(200_000),
+  name: z.string().trim().max(120).optional(),
+  workDir: z.string().trim().max(1024).optional(),
+})
+
+export const followUpSchema = z.object({ prompt: z.string().trim().min(1).max(200_000) })
+
+export const runListQuerySchema = z.object({
+  status: z.string().max(100).optional(),
+  workflowId: z.string().max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  before: z.string().datetime().optional(),
+})
+
+export const logsQuerySchema = z.object({
+  stepId: z.string().max(64).optional(),
+  after: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(20_000).default(5000),
+})
+
+export const pruneSchema = z.object({ days: z.number().int().min(0).max(3650) })
 
 export type WorkflowFile = z.infer<typeof workflowFileSchema>
 export type AgentBody = z.infer<typeof agentBodySchema>

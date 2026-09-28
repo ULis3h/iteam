@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import type { AppContext } from '../context.js'
 import { availableProviderIds, detectCapabilities } from '../engine/capabilities.js'
+import type { WorkflowStep } from '../engine/types.js'
 import { parseJson } from '../db.js'
 import { agentBodySchema, formatZodError } from '../workflow/schema.js'
-import { asyncRoute, HttpError, serializeAgent } from './helpers.js'
+import { asyncRoute, HttpError, mergeEnv, serializeAgent } from './helpers.js'
 
 export function agentRoutes(ctx: AppContext) {
   const router = Router()
@@ -17,8 +18,16 @@ export function agentRoutes(ctx: AppContext) {
         ? caps.includes(a.provider)
         : parseJson<string[]>(a.runner?.capabilities ?? '[]', []).includes(a.provider) || a.provider === 'custom'
       const state = !online ? 'offline' : busy ? 'busy' : cliAvailable ? 'ready' : 'missing-cli'
-      return { ...serializeAgent(a), state, busy }
+      return { ...serializeAgent(a, a.location === 'remote' ? online : undefined), state, busy }
     })
+  }
+
+  /** Workflows whose steps reference the agent (steps are JSON, so this is a scan). */
+  const usageOf = async (agentId: string) => {
+    const workflows = await ctx.prisma.workflow.findMany({ select: { id: true, name: true, steps: true } })
+    return workflows
+      .filter((w) => parseJson<WorkflowStep[]>(w.steps, []).some((s) => s.agentId === agentId))
+      .map((w) => ({ id: w.id, name: w.name }))
   }
 
   router.get(
@@ -38,27 +47,35 @@ export function agentRoutes(ctx: AppContext) {
     }),
   )
 
-  const validate = (body: unknown) => {
+  router.get(
+    '/:id/usage',
+    asyncRoute(async (req, res) => {
+      const workflows = await usageOf(req.params.id)
+      const pendingSteps = await ctx.prisma.runStep.count({ where: { agentId: req.params.id, status: { in: ['pending', 'running'] } } })
+      res.json({ workflows, pendingSteps })
+    }),
+  )
+
+  const validate = async (body: unknown, existingId?: string) => {
     const parsed = agentBodySchema.safeParse(body)
     if (!parsed.success) throw new HttpError(400, formatZodError(parsed.error))
     const data = parsed.data
     if (data.provider === 'custom' && !data.command.trim()) throw new HttpError(400, 'custom provider requires a command template')
-    if (data.location === 'remote' && !data.runnerId) throw new HttpError(400, 'remote agents must be bound to a runner')
-    return {
-      ...data,
-      runnerId: data.location === 'remote' ? data.runnerId : null,
-      extraArgs: JSON.stringify(data.extraArgs),
-      env: JSON.stringify(data.env),
+    if (data.location === 'remote') {
+      if (!data.runnerId) throw new HttpError(400, 'remote agents must be bound to a runner')
+      const runner = await ctx.prisma.runner.findUnique({ where: { id: data.runnerId } })
+      if (!runner) throw new HttpError(400, 'the selected runner does not exist')
     }
+    const clash = (await ctx.prisma.agent.findMany({ select: { id: true, name: true } })).find((a) => a.name.toLowerCase() === data.name.toLowerCase() && a.id !== existingId)
+    if (clash) throw new HttpError(409, `an agent named "${clash.name}" already exists`)
+    return { ...data, runnerId: data.location === 'remote' ? data.runnerId : null, extraArgs: JSON.stringify(data.extraArgs) }
   }
 
   router.post(
     '/',
     asyncRoute(async (req, res) => {
-      const data = validate(req.body)
-      const exists = await ctx.prisma.agent.findUnique({ where: { name: data.name } })
-      if (exists) throw new HttpError(409, `an agent named "${data.name}" already exists`)
-      const agent = await ctx.prisma.agent.create({ data, include: { runner: true } })
+      const data = await validate(req.body)
+      const agent = await ctx.prisma.agent.create({ data: { ...data, env: JSON.stringify(data.env) }, include: { runner: true } })
       const [payload] = await withState([agent])
       ctx.broadcast.all('agent:changed', payload)
       res.status(201).json(payload)
@@ -68,10 +85,12 @@ export function agentRoutes(ctx: AppContext) {
   router.put(
     '/:id',
     asyncRoute(async (req, res) => {
-      const data = validate(req.body)
-      const clash = await ctx.prisma.agent.findFirst({ where: { name: data.name, NOT: { id: req.params.id } } })
-      if (clash) throw new HttpError(409, `an agent named "${data.name}" already exists`)
-      const agent = await ctx.prisma.agent.update({ where: { id: req.params.id }, data, include: { runner: true } })
+      const existing = await ctx.prisma.agent.findUnique({ where: { id: req.params.id } })
+      if (!existing) throw new HttpError(404, 'agent not found')
+      const data = await validate(req.body, existing.id)
+      // masked env values coming back from the UI keep their stored secrets
+      const env = mergeEnv(parseJson<Record<string, string>>(existing.env, {}), data.env)
+      const agent = await ctx.prisma.agent.update({ where: { id: req.params.id }, data: { ...data, env: JSON.stringify(env) }, include: { runner: true } })
       const [payload] = await withState([agent])
       ctx.broadcast.all('agent:changed', payload)
       res.json(payload)
@@ -82,6 +101,12 @@ export function agentRoutes(ctx: AppContext) {
     '/:id',
     asyncRoute(async (req, res) => {
       if (ctx.runs.runningCount(req.params.id) > 0) throw new HttpError(409, 'agent is currently running a step')
+      const pending = await ctx.prisma.runStep.count({ where: { agentId: req.params.id, status: { in: ['pending', 'running'] } } })
+      if (pending > 0) throw new HttpError(409, `agent has ${pending} pending step(s) in active runs; cancel them first`)
+      const usage = await usageOf(req.params.id)
+      if (usage.length && req.query.force !== '1') {
+        throw new HttpError(409, `agent is used by ${usage.length} workflow(s): ${usage.map((w) => w.name).join(', ')}. Reassign those steps or delete with force=1`, { workflows: usage })
+      }
       await ctx.prisma.agent.delete({ where: { id: req.params.id } })
       ctx.broadcast.all('agent:deleted', { id: req.params.id })
       res.status(204).end()

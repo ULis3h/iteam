@@ -17,13 +17,17 @@ export interface ProviderSpec {
 export interface SystemInfo {
   version: string
   authRequired: boolean
-  maxParallel: number
-  defaultWorkDir: string
-  platform: string
   providers: ProviderSpec[]
   efforts: Effort[]
-  capabilities: { checkedAt: string; providers: Record<string, { available: boolean; path: string | null }> }
-  activeSteps: number
+  // present once authenticated
+  host?: string
+  maxParallel?: number
+  defaultWorkDir?: string
+  platform?: string
+  capabilities?: { checkedAt: string; providers: Record<string, { available: boolean; path: string | null }> }
+  activeSteps?: number
+  retentionDays?: number
+  runnerTokenSeparate?: boolean
 }
 
 export interface Runner {
@@ -57,6 +61,7 @@ export interface Agent {
   env: Record<string, string>
   autoApprove: boolean
   timeoutSec: number
+  maxConcurrent: number
   color: string
   createdAt: string
   updatedAt: string
@@ -87,6 +92,7 @@ export interface WorkflowStep {
   timeoutSec?: number
   retries?: number
   continueOnError?: boolean
+  workDir?: string
   resumeSessionId?: string
 }
 
@@ -184,6 +190,7 @@ export interface ImportPreview {
   steps?: Array<{ id: string; name: string; agent: string; dependsOn: string[] }>
   agents?: Array<{ name: string; status: 'existing' | 'create' | 'create-default' }>
   stages?: string[][]
+  warnings?: string[]
 }
 
 export interface WorkflowTemplate {

@@ -29,7 +29,9 @@ export function SettingsPage() {
           <Card className="p-5 space-y-3 text-[13px]">
             <Row label={t('settings.version')} value={system?.version ?? '—'} />
             <Row label={t('settings.auth')} value={system?.authRequired ? t('settings.auth.on') : t('settings.auth.off')} />
+            <Row label={t('settings.host')} value={<span className="mono">{system?.host ?? '—'}:{window.location.port || '3000'}</span>} />
             <Row label={t('settings.maxParallel')} value={String(system?.maxParallel ?? '—')} />
+            <Row label={t('settings.retention')} value={system?.retentionDays ? t('settings.retention.days', { n: system.retentionDays }) : t('settings.retention.off')} />
             <Row label={t('settings.workDir')} value={<span className="mono break-all">{system?.defaultWorkDir ?? '—'}</span>} />
             <Row
               label={t('settings.language')}
@@ -63,7 +65,7 @@ export function SettingsPage() {
             {system?.providers
               .filter((p) => p.bin)
               .map((p) => {
-                const cap = system.capabilities.providers[p.id]
+                const cap = system.capabilities?.providers[p.id]
                 return (
                   <div key={p.id} className="flex items-center justify-between gap-3">
                     <div>

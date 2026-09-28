@@ -292,7 +292,7 @@ function StepCard({
 }) {
   const { t } = useT()
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort))
+  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir))
   const agent = agents.find((a) => a.id === step.agentId)
   const others = steps.filter((s) => s.id !== step.id)
   // steps that (transitively) depend on this one cannot also be its dependencies
@@ -436,7 +436,12 @@ function StepCard({
               <Field label={t('editor.step.retries')}>
                 <input className="input" type="number" min={0} max={5} value={step.retries ?? 0} onChange={(e) => onChange({ retries: Math.max(0, Math.min(5, Number(e.target.value) || 0)) })} />
               </Field>
-              <div className="col-span-2 md:col-span-4">
+              <div className="col-span-2 md:col-span-3">
+                <Field label={t('editor.step.workDir')}>
+                  <input className="input mono" placeholder={t('editor.step.workDirPlaceholder')} value={step.workDir ?? ''} onChange={(e) => onChange({ workDir: e.target.value || undefined })} />
+                </Field>
+              </div>
+              <div className="col-span-2 md:col-span-1 pb-2">
                 <Toggle checked={!!step.continueOnError} onChange={(v) => onChange({ continueOnError: v })} label={t('editor.step.continueOnError')} />
               </div>
             </div>

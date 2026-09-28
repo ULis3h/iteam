@@ -49,7 +49,16 @@ export const providerSpec = (id: string): ProviderSpec =>
 
 const CODEX_EFFORT: Record<Effort, string> = { low: 'low', medium: 'medium', high: 'high', max: 'xhigh' }
 
-const shellQuote = (value: string): string => `'${value.replace(/'/g, `'\\''`)}'`
+const isWin = process.platform === 'win32'
+
+/** Quote a value for the platform shell used by custom command templates. */
+export const shellQuote = (value: string): string =>
+  isWin ? `"${value.replace(/(["%])/g, '^$1')}"` : `'${value.replace(/'/g, `'\\''`)}'`
+
+/** Replace every occurrence of a template placeholder with a literal value (no `$` expansion). */
+const fill = (text: string, name: string, value: string): string => text.replace(new RegExp(`\\{\\{\\s*${name}\\s*\\}\\}`, 'g'), () => value)
+
+const MAX_INLINE_PROMPT = 64 * 1024
 
 /** Translate an agent runtime + prompt into a concrete process spec. */
 export function buildJob(id: string, runtime: AgentRuntime, prompt: string): JobSpec {
@@ -93,11 +102,13 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
     default: {
       const template = runtime.command.trim()
       if (!template) throw new Error('custom provider requires a command template')
-      const cmd = template
-        .replace(/\{\{\s*model\s*\}\}/g, runtime.model)
-        .replace(/\{\{\s*effort\s*\}\}/g, runtime.effort)
-        .replace(/\{\{\s*workDir\s*\}\}/g, runtime.workDir)
-        .replace(/\{\{\s*prompt\s*\}\}/g, shellQuote(prompt))
+      if (/\{\{\s*prompt\s*\}\}/.test(template) && prompt.length > MAX_INLINE_PROMPT) {
+        throw new Error(`prompt is too large (${prompt.length} chars) to pass inline via {{prompt}}; use {{promptFile}} or stdin instead`)
+      }
+      let cmd = fill(template, 'model', shellQuote(runtime.model))
+      cmd = fill(cmd, 'effort', shellQuote(runtime.effort))
+      cmd = fill(cmd, 'workDir', shellQuote(runtime.workDir))
+      cmd = fill(cmd, 'prompt', shellQuote(prompt))
       const useOutputFile = /\{\{\s*outputFile\s*\}\}/.test(cmd)
       return { ...base, cmd, args: [], shell: true, useOutputFile, parser: 'none' }
     }

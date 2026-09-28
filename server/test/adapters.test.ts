@@ -59,9 +59,21 @@ describe('buildJob', () => {
   it('renders custom command templates through the shell with quoted prompt', () => {
     const job = buildJob('j4', { ...base, provider: 'custom', command: `my-agent --model {{model}} --effort {{effort}} --p {{prompt}} > {{outputFile}}` }, `it's "x"`)
     expect(job.shell).toBe(true)
-    expect(job.cmd).toBe(`my-agent --model sonnet --effort high --p 'it'\\''s "x"' > {{outputFile}}`)
+    expect(job.cmd).toBe(`my-agent --model 'sonnet' --effort 'high' --p 'it'\\''s "x"' > {{outputFile}}`)
     expect(job.useOutputFile).toBe(true)
     expect(job.args).toEqual([])
+  })
+
+  it('does not expand $-sequences from prompts or values in custom templates', () => {
+    const prompt = "use $& and $' and $` and $$ literally"
+    const job = buildJob('j7', { ...base, provider: 'custom', command: 'run {{prompt}} {{model}}', model: 'm$&' }, prompt)
+    expect(job.cmd).toBe(`run '${prompt.replace(/'/g, `'\\''`)}' 'm$&'`)
+  })
+
+  it('refuses oversized inline prompts but not stdin/promptFile ones', () => {
+    const big = 'x'.repeat(70 * 1024)
+    expect(() => buildJob('j8', { ...base, provider: 'custom', command: 'run {{prompt}}' }, big)).toThrow(/too large/)
+    expect(buildJob('j9', { ...base, provider: 'custom', command: 'run {{promptFile}}' }, big).stdin).toHaveLength(big.length)
   })
 
   it('rejects an empty custom command', () => {

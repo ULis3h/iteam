@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { renderTemplate } from '../src/engine/template.js'
+import { renderTemplate, templateIssues } from '../src/engine/template.js'
 
 describe('renderTemplate', () => {
   const ctx = {
@@ -27,5 +27,30 @@ describe('renderTemplate', () => {
 
   it('leaves text without placeholders untouched', () => {
     expect(renderTemplate('plain {{ not a var', ctx).text).toBe('plain {{ not a var')
+  })
+})
+
+describe('templateIssues', () => {
+  it('reports unknown inputs, unknown steps, self references and undeclared dependencies', () => {
+    const issues = templateIssues({
+      inputs: [{ key: 'repo' }],
+      steps: [
+        { id: 'a', name: 'A', prompt: '{{inputs.repo}} {{inputs.nope}} {{steps.a.output}}', dependsOn: [] },
+        { id: 'b', name: 'B', prompt: '{{steps.a.output}} {{steps.zzz.output}}', dependsOn: [] },
+        { id: 'c', name: 'C', prompt: '{{steps.a.output}}', dependsOn: ['a'] },
+      ],
+    })
+    expect(issues).toEqual([
+      'step "A": unknown input {{inputs.nope}}',
+      'step "A": refers to its own output',
+      'step "B": uses {{steps.a.output}} but does not depend on "a"',
+      'step "B": unknown step {{steps.zzz.output}}',
+    ])
+  })
+
+  it('does not walk the prototype chain', () => {
+    const { text, missing } = renderTemplate('{{inputs.constructor}} {{steps.toString}}', { inputs: {}, steps: {} })
+    expect(text).toBe(' ')
+    expect(missing).toEqual(['inputs.constructor', 'steps.toString'])
   })
 })

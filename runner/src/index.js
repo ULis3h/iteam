@@ -25,15 +25,28 @@ export async function start(opts) {
 
   const jobs = new Map()
 
-  socket.on('connect', () => log('connected'))
+  socket.on('connect', () => {
+    log('connected')
+    // jobs started before a reconnect cannot be reported to the new connection; stop them
+    for (const [jobId, handle] of jobs) {
+      handle.cancel()
+      jobs.delete(jobId)
+    }
+  })
   socket.on('runner:registered', (data) => log(`registered as ${data.name} (${data.id})`))
-  socket.on('runner:error', (data) => log(`server error: ${data.message}`))
   socket.on('connect_error', (err) => log(`connection failed: ${err.message}`))
   socket.on('disconnect', (reason) => {
     log(`disconnected (${reason})`)
     for (const [jobId, handle] of jobs) {
       handle.cancel()
       jobs.delete(jobId)
+    }
+  })
+  socket.on('runner:error', (data) => {
+    log(`server rejected the connection: ${data?.message ?? 'unknown error'}`)
+    if (data?.fatal) {
+      socket.close()
+      process.exit(1)
     }
   })
 

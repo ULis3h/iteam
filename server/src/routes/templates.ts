@@ -1,12 +1,13 @@
 import { Router } from 'express'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { config } from '../config.js'
 import type { AppContext } from '../context.js'
 import { stages } from '../engine/dag.js'
 import { parseWorkflowFile } from '../workflow/import-export.js'
 import { asyncRoute } from './helpers.js'
 
-const EXAMPLES_DIR = path.resolve(process.cwd(), '../examples')
+const EXAMPLES_DIR = config.examplesDir
 
 /** Built-in workflow templates: every valid YAML/JSON file in examples/. */
 export function templateRoutes(_ctx: AppContext) {

@@ -40,7 +40,13 @@ export function AgentsPage() {
     if (agent.busy > 0) return setError(t('agents.deleteBusy'))
     if (!confirm(t('common.confirmDelete', { name: agent.name }))) return
     try {
-      await api.deleteAgent(agent.id)
+      const usage = await api.agentUsage(agent.id)
+      if (usage.workflows.length) {
+        if (!confirm(t('agents.deleteUsed', { n: usage.workflows.length, names: usage.workflows.map((w) => w.name).join(', ') }))) return
+        await api.deleteAgent(agent.id, true)
+      } else {
+        await api.deleteAgent(agent.id)
+      }
       await load()
     } catch (err) {
       setError((err as Error).message)
@@ -109,6 +115,7 @@ export function AgentsPage() {
                   {agent.location === 'local' ? <HardDrive size={11} /> : <Server size={11} />}
                   {agent.location === 'local' ? t('common.local') : agent.runner?.name ?? t('common.remote')}
                 </span>
+                {agent.maxConcurrent > 1 && <span className="chip">×{agent.maxConcurrent}</span>}
               </div>
               {agent.role && <p className="mt-3 text-[12px] text-ink-soft line-clamp-2 leading-snug">{agent.role}</p>}
               <div className="mt-4 flex items-center justify-between">

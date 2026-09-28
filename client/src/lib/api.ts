@@ -44,7 +44,8 @@ export const api = {
   agents: () => request<Agent[]>('GET', '/agents'),
   createAgent: (data: AgentInput) => request<Agent>('POST', '/agents', data),
   updateAgent: (id: string, data: AgentInput) => request<Agent>('PUT', `/agents/${id}`, data),
-  deleteAgent: (id: string) => request<void>('DELETE', `/agents/${id}`),
+  deleteAgent: (id: string, force = false) => request<void>('DELETE', `/agents/${id}${force ? '?force=1' : ''}`),
+  agentUsage: (id: string) => request<{ workflows: Array<{ id: string; name: string }>; pendingSteps: number }>('GET', `/agents/${id}/usage`),
 
   runners: () => request<Runner[]>('GET', '/runners'),
   deleteRunner: (id: string) => request<void>('DELETE', `/runners/${id}`),
@@ -54,7 +55,7 @@ export const api = {
   createWorkflow: (data: WorkflowDefinition) => request<Workflow>('POST', '/workflows', data),
   updateWorkflow: (id: string, data: WorkflowDefinition) => request<Workflow>('PUT', `/workflows/${id}`, data),
   deleteWorkflow: (id: string) => request<void>('DELETE', `/workflows/${id}`),
-  validateWorkflow: (data: WorkflowDefinition) => request<{ ok: boolean; stages: string[][] }>('POST', '/workflows/validate', data),
+  validateWorkflow: (data: WorkflowDefinition) => request<{ ok: boolean; stages: string[][]; warnings: string[] }>('POST', '/workflows/validate', data),
   runWorkflow: (id: string, inputs: Record<string, string>, name?: string) => request<Run>('POST', `/workflows/${id}/run`, { inputs, name }),
   previewImport: (content: string) => request<ImportPreview>('POST', '/workflows/preview', { content }),
   importWorkflow: (content: string, run: boolean, inputs?: Record<string, string>) =>
@@ -62,16 +63,17 @@ export const api = {
   templates: () => request<WorkflowTemplate[]>('GET', '/templates'),
   exportWorkflow: (id: string, format: 'yaml' | 'json') => request<string>('GET', `/workflows/${id}/export?format=${format}`, undefined, true),
 
-  runs: (params: { status?: string; workflowId?: string; limit?: number } = {}) => {
+  runs: (params: { status?: string; workflowId?: string; limit?: number; before?: string } = {}) => {
     const q = new URLSearchParams()
     if (params.status) q.set('status', params.status)
     if (params.workflowId) q.set('workflowId', params.workflowId)
     if (params.limit) q.set('limit', String(params.limit))
+    if (params.before) q.set('before', params.before)
     const s = q.toString()
     return request<Run[]>('GET', `/runs${s ? `?${s}` : ''}`)
   },
   run: (id: string) => request<Run>('GET', `/runs/${id}`),
-  runLogs: (id: string, stepId?: string) => request<LogLine[]>('GET', `/runs/${id}/logs${stepId ? `?stepId=${stepId}` : ''}`),
+  runLogs: (id: string, stepId?: string) => request<LogLine[]>('GET', `/runs/${id}/logs?limit=20000${stepId ? `&stepId=${stepId}` : ''}`),
   runStep: (runId: string, stepId: string) => request<RunStep>('GET', `/runs/${runId}/steps/${stepId}`),
   quickRun: (agentId: string, prompt: string, name?: string, workDir?: string) => request<Run>('POST', '/runs/quick', { agentId, prompt, name, workDir }),
   followUp: (runId: string, stepId: string, prompt: string) => request<Run>('POST', `/runs/${runId}/steps/${stepId}/followup`, { prompt }),
