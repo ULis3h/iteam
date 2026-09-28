@@ -4,12 +4,13 @@ import { config } from '../config.js'
 import { parseJson } from '../db.js'
 import { log } from '../logger.js'
 import { buildJob } from './adapters.js'
+import { createParser, type ParserKind, type StepUsage } from './parsers.js'
 import { topologicalOrder } from './dag.js'
 import { runLocalJob } from './local-executor.js'
 import type { LogWriter } from './log-writer.js'
 import type { RunnerRegistry } from './runner-registry.js'
 import { renderTemplate } from './template.js'
-import type { AgentRuntime, Effort, JobHandle, JobResult, Provider, WorkflowDefinition } from './types.js'
+import type { AgentRuntime, Effort, JobHandle, JobResult, LogStream, Provider, WorkflowDefinition } from './types.js'
 
 export interface RunEvents {
   run: (run: Run) => void
@@ -250,6 +251,7 @@ export class RunManager {
       env: parseJson<Record<string, string>>(agent.env, {}),
       workDir: agent.workDir || (agent.location === 'remote' ? '' : config.defaultWorkDir),
       timeoutSec: stepDef.timeoutSec || agent.timeoutSec,
+      resumeSessionId: stepDef.resumeSessionId,
     }
 
     const context = {
@@ -263,7 +265,8 @@ export class RunManager {
     }
     const rendered = renderTemplate(stepDef.prompt, context)
     const parts: string[] = []
-    if (agent.role.trim()) parts.push(agent.role.trim(), '---')
+    // a resumed session already carries the role instructions
+    if (agent.role.trim() && !stepDef.resumeSessionId) parts.push(agent.role.trim(), '---')
     parts.push(rendered.text.trim())
     if (stepDef.expectedOutput?.trim()) parts.push('---', `Expected output:\n${stepDef.expectedOutput.trim()}`)
     const prompt = parts.join('\n\n')
@@ -295,13 +298,24 @@ export class RunManager {
     this.events.step(updated)
 
     await this.logs.prime(step.id)
-    const write = (stream: 'stdout' | 'stderr' | 'system', line: string) => this.logs.write(run.id, step.id, stream, line)
-    write('system', `▶ attempt ${attempt}/${step.maxAttempts} · agent ${agent.name} · ${runtime.provider}${runtime.model ? ` / ${runtime.model}` : ''} · effort ${runtime.effort}`)
+    const write = (stream: LogStream, line: string) => this.logs.write(run.id, step.id, stream, line)
+    write('system', `▶ attempt ${attempt}/${step.maxAttempts} · agent ${agent.name} · ${runtime.provider}${runtime.model ? ` / ${runtime.model}` : ''} · effort ${runtime.effort}${runtime.resumeSessionId ? ` · resume ${runtime.resumeSessionId.slice(0, 8)}` : ''}`)
     if (rendered.missing.length) write('system', `warning: unresolved template variables: ${rendered.missing.join(', ')}`)
 
+    // Machine-readable CLI output is turned into readable event lines; other lines pass through.
+    const parser = createParser(job.parser)
     const handlers = {
-      onLog: write,
-      onDone: (result: JobResult) => void this.onStepDone(run.id, step.id, agent.id, result),
+      onLog: (stream: LogStream, line: string) => {
+        if (stream === 'stdout' && parser) {
+          const parsed = parser.feed(line)
+          if (parsed) {
+            for (const p of parsed) write(p.stream, p.line)
+            return
+          }
+        }
+        write(stream, line)
+      },
+      onDone: (result: JobResult) => void this.onStepDone(run.id, step.id, agent.id, result, parser?.result() ?? {}, job.parser),
     }
     const handle = agent.location === 'remote'
       ? this.registry.dispatch(agent.runnerId as string, job, handlers)
@@ -312,7 +326,7 @@ export class RunManager {
     return updated
   }
 
-  private async onStepDone(runId: string, stepId: string, agentId: string, result: JobResult) {
+  private async onStepDone(runId: string, stepId: string, agentId: string, result: JobResult, usage: StepUsage, parserKind: ParserKind) {
     this.active.delete(stepId)
     this.runningByAgent.set(agentId, Math.max(0, (this.runningByAgent.get(agentId) ?? 1) - 1))
 
@@ -321,20 +335,30 @@ export class RunManager {
       if (!step || step.status !== 'running') return
 
       const write = (line: string) => this.logs.write(runId, stepId, 'system', line)
-      const success = result.exitCode === 0 && !result.cancelled && !result.timedOut
+      // With an event-stream parser the raw stdout is JSON; the final answer comes from the parser.
+      const output = parserKind === 'claude-stream-json' ? (usage.output ?? '') : result.output?.trim() ? result.output : (usage.output ?? '')
+      const failure = result.error ?? (usage.isError ? usage.errorMessage ?? 'agent reported an error' : undefined)
+      const success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
+      const meta = {
+        sessionId: usage.sessionId ?? step.sessionId,
+        costUsd: usage.costUsd ?? step.costUsd,
+        inputTokens: usage.inputTokens ?? step.inputTokens,
+        outputTokens: usage.outputTokens ?? step.outputTokens,
+        turns: usage.turns ?? step.turns,
+      }
       let data: Partial<RunStep>
 
       if (success) {
         write(`✓ finished (exit 0)`)
-        data = { status: 'succeeded', output: result.output, exitCode: 0, error: null, finishedAt: new Date() }
+        data = { ...meta, status: 'succeeded', output, exitCode: 0, error: null, finishedAt: new Date() }
       } else if (result.cancelled) {
-        data = { status: 'cancelled', output: result.output, exitCode: result.exitCode, error: 'cancelled', finishedAt: new Date() }
+        data = { ...meta, status: 'cancelled', output, exitCode: result.exitCode, error: 'cancelled', finishedAt: new Date() }
       } else if (step.attempt < step.maxAttempts) {
-        write(`✗ failed (${result.error ?? `exit ${result.exitCode}`}) · retrying (${step.attempt}/${step.maxAttempts})`)
-        data = { status: 'pending', output: result.output, exitCode: result.exitCode, error: result.error ?? null }
+        write(`✗ failed (${failure ?? `exit ${result.exitCode}`}) · retrying (${step.attempt}/${step.maxAttempts})`)
+        data = { ...meta, status: 'pending', output, exitCode: result.exitCode, error: failure ?? null }
       } else {
-        write(`✗ failed (${result.error ?? `exit ${result.exitCode}`})`)
-        data = { status: 'failed', output: result.output, exitCode: result.exitCode, error: result.error ?? `exit code ${result.exitCode}`, finishedAt: new Date() }
+        write(`✗ failed (${failure ?? `exit ${result.exitCode}`})`)
+        data = { ...meta, status: 'failed', output, exitCode: result.exitCode, error: failure ?? `exit code ${result.exitCode}`, finishedAt: new Date() }
       }
 
       const updated = await this.prisma.runStep.update({ where: { id: stepId }, data })

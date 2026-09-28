@@ -87,6 +87,7 @@ export interface WorkflowStep {
   timeoutSec?: number
   retries?: number
   continueOnError?: boolean
+  resumeSessionId?: string
 }
 
 export interface Workflow {
@@ -131,6 +132,11 @@ export interface RunStep {
   effort: string
   location: Location
   runnerId: string | null
+  sessionId: string | null
+  costUsd: number | null
+  inputTokens: number | null
+  outputTokens: number | null
+  turns: number | null
   startedAt: string | null
   finishedAt: string | null
 }
@@ -155,7 +161,7 @@ export interface LogLine {
   stepId: string
   seq: number
   ts: string
-  stream: 'stdout' | 'stderr' | 'system'
+  stream: 'stdout' | 'stderr' | 'system' | 'event'
   line: string
 }
 

@@ -80,6 +80,35 @@ export function runRoutes(ctx: AppContext) {
     }),
   )
 
+  /** Continue a finished step's CLI session with a new prompt (recorded as a new run). */
+  router.post(
+    '/:id/steps/:stepId/followup',
+    asyncRoute(async (req, res) => {
+      const { prompt } = req.body as { prompt?: string }
+      if (!prompt?.trim()) throw new HttpError(400, 'prompt is required')
+      const step = await ctx.prisma.runStep.findFirst({ where: { id: req.params.stepId, runId: req.params.id } })
+      if (!step) throw new HttpError(404, 'step not found')
+      if (!step.agentId) throw new HttpError(400, 'the agent of this step no longer exists')
+      if (!step.sessionId) throw new HttpError(400, 'this step has no resumable session')
+      if (step.provider !== 'claude-code') throw new HttpError(400, 'follow-ups are currently supported for Claude Code steps only')
+      const title = `↩ ${step.name}: ${prompt.trim().split('\n')[0]}`.slice(0, 80)
+      const def: WorkflowDefinition = {
+        name: title,
+        description: '',
+        inputs: [],
+        steps: [{ id: 'followup', name: title, agentId: step.agentId, prompt: prompt.trim(), dependsOn: [], resumeSessionId: step.sessionId, model: step.model || undefined, effort: (step.effort || undefined) as WorkflowDefinition['steps'][number]['effort'] }],
+      }
+      let run
+      try {
+        run = await ctx.runs.createRun(def, { name: title })
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
+      }
+      void ctx.runs.start(run.id)
+      res.status(201).json(serializeRun(run))
+    }),
+  )
+
   router.post(
     '/:id/cancel',
     asyncRoute(async (req, res) => {

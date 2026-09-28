@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -154,6 +154,59 @@ describe('RunManager', () => {
     expect(run.steps.map((s) => s.status)).toEqual(['cancelled', 'cancelled'])
     expect(manager.activeSteps()).toBe(0)
     await expect(manager.retry('does-not-exist')).rejects.toThrow(/not found/)
+  })
+
+  it('parses Claude stream-json output into events, usage and a resumable session', async () => {
+    const bin = path.join(dir, 'bin')
+    mkdtempSync(path.join(os.tmpdir(), 'x-')) // ensure tmp is writable
+    const script = `#!/usr/bin/env bash
+cat >/dev/null
+echo "args: $*" >&2
+echo '{"type":"system","subtype":"init","session_id":"sess-001","model":"stub"}'
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"a.ts"}}]}}'
+echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSWER","total_cost_usd":0.05,"num_turns":2,"duration_ms":10,"usage":{"input_tokens":10,"output_tokens":5}}'
+`
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(bin, { recursive: true })
+    writeFileSync(path.join(bin, 'claude'), script)
+    chmodSync(path.join(bin, 'claude'), 0o755)
+    const oldPath = process.env.PATH
+    process.env.PATH = `${bin}:${oldPath}`
+    try {
+      const agent = await prisma.agent.create({ data: { name: 'claude-stub', provider: 'claude-code', model: 'sonnet', workDir: os.tmpdir(), timeoutSec: 30 } })
+      const def: WorkflowDefinition = { name: 'claude', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: agent.id, prompt: 'hello', dependsOn: [] }] }
+      const created = await manager.createRun(def, {})
+      await manager.start(created.id)
+      const run = await waitFor(created.id, finished)
+      const step = run.steps[0]
+      expect(run.status).toBe('succeeded')
+      expect(step.output).toBe('FINAL ANSWER')
+      expect(step.sessionId).toBe('sess-001')
+      expect(step.costUsd).toBe(0.05)
+      expect(step.inputTokens).toBe(10)
+      expect(step.outputTokens).toBe(5)
+      expect(step.turns).toBe(2)
+      await logs.flush()
+      const lines = await prisma.runLog.findMany({ where: { stepId: step.id }, orderBy: { seq: 'asc' } })
+      expect(lines.map((l) => l.line)).toContain('🔧 Read a.ts')
+      expect(lines.some((l) => l.stream === 'event' && l.line.startsWith('✓ result · $0.0500'))).toBe(true)
+      expect(lines.some((l) => l.line.startsWith('{'))).toBe(false)
+
+      // follow-up resumes the session and does not repeat the role
+      await prisma.agent.update({ where: { id: agent.id }, data: { role: 'ROLE TEXT' } })
+      const follow = await manager.createRun({ ...def, steps: [{ ...def.steps[0], prompt: 'continue', resumeSessionId: step.sessionId! }] }, {})
+      await manager.start(follow.id)
+      const followRun = await waitFor(follow.id, finished)
+      expect(followRun.status).toBe('succeeded')
+      expect(followRun.steps[0].prompt).toBe('continue')
+      const followLines = await (async () => {
+        await logs.flush()
+        return prisma.runLog.findMany({ where: { stepId: followRun.steps[0].id } })
+      })()
+      expect(followLines.some((l) => l.stream === 'stderr' && l.line.includes('--resume sess-001'))).toBe(true)
+    } finally {
+      process.env.PATH = oldPath
+    }
   })
 
   it('times out long-running steps', async () => {

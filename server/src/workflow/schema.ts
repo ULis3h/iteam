@@ -24,6 +24,7 @@ export const stepFieldsSchema = z.object({
   timeoutSec: z.number().int().positive().max(86400).optional(),
   retries: z.number().int().min(0).max(5).optional(),
   continueOnError: z.boolean().optional(),
+  resumeSessionId: z.string().optional(),
 })
 
 /** Steps as stored in the database and edited in the UI (agent referenced by id). */

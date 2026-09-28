@@ -19,6 +19,8 @@ export interface AgentRuntime {
   env: Record<string, string>
   workDir: string
   timeoutSec: number
+  /** Continue a previous CLI session (follow-up prompts). */
+  resumeSessionId?: string
 }
 
 /** A concrete process to execute, understood by both the local executor and remote runners. */
@@ -33,6 +35,8 @@ export interface JobSpec {
   timeoutSec: number
   /** Read the final answer from the `{{outputFile}}` placeholder path instead of stdout. */
   useOutputFile: boolean
+  /** Server-side parser for the CLI's machine-readable output (see parsers.ts). */
+  parser: 'none' | 'claude-stream-json' | 'codex-json'
 }
 
 export interface JobResult {
@@ -43,7 +47,7 @@ export interface JobResult {
   cancelled?: boolean
 }
 
-export type LogStream = 'stdout' | 'stderr' | 'system'
+export type LogStream = 'stdout' | 'stderr' | 'system' | 'event'
 
 export interface JobHandlers {
   onLog: (stream: LogStream, line: string) => void
@@ -75,6 +79,8 @@ export interface WorkflowStep {
   timeoutSec?: number
   retries?: number
   continueOnError?: boolean
+  /** Follow-up steps continue an earlier CLI session instead of starting fresh. */
+  resumeSessionId?: string
 }
 
 export interface WorkflowDefinition {

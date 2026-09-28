@@ -63,21 +63,23 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
 
   switch (runtime.provider) {
     case 'claude-code': {
-      const args = ['-p', '--output-format', 'text']
+      // stream-json (requires --verbose) gives live tool activity, the final result, cost and session id
+      const args = ['-p', '--output-format', 'stream-json', '--verbose']
+      if (runtime.resumeSessionId) args.push('--resume', runtime.resumeSessionId)
       if (runtime.model) args.push('--model', runtime.model)
       if (runtime.effort) args.push('--effort', runtime.effort)
       if (runtime.autoApprove) args.push('--dangerously-skip-permissions')
       else args.push('--permission-mode', 'acceptEdits')
       args.push(...runtime.extraArgs)
-      return { ...base, cmd: 'claude', args, shell: false, useOutputFile: false }
+      return { ...base, cmd: 'claude', args, shell: false, useOutputFile: false, parser: 'claude-stream-json' }
     }
     case 'codex': {
-      const args = ['exec', '--skip-git-repo-check', '-o', '{{outputFile}}']
+      const args = ['exec', '--json', '--skip-git-repo-check', '-o', '{{outputFile}}']
       if (runtime.model) args.push('-m', runtime.model)
       if (runtime.effort) args.push('-c', `model_reasoning_effort="${CODEX_EFFORT[runtime.effort]}"`)
       args.push(runtime.autoApprove ? '--dangerously-bypass-approvals-and-sandbox' : '--full-auto')
       args.push(...runtime.extraArgs, '-')
-      return { ...base, cmd: 'codex', args, shell: false, useOutputFile: true }
+      return { ...base, cmd: 'codex', args, shell: false, useOutputFile: true, parser: 'codex-json' }
     }
     case 'gemini': {
       const args: string[] = []
@@ -85,7 +87,7 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
       if (runtime.autoApprove) args.push('--yolo')
       else args.push('--approval-mode', 'auto_edit')
       args.push(...runtime.extraArgs)
-      return { ...base, cmd: 'gemini', args, shell: false, useOutputFile: false }
+      return { ...base, cmd: 'gemini', args, shell: false, useOutputFile: false, parser: 'none' }
     }
     case 'custom':
     default: {
@@ -97,7 +99,7 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
         .replace(/\{\{\s*workDir\s*\}\}/g, runtime.workDir)
         .replace(/\{\{\s*prompt\s*\}\}/g, shellQuote(prompt))
       const useOutputFile = /\{\{\s*outputFile\s*\}\}/.test(cmd)
-      return { ...base, cmd, args: [], shell: true, useOutputFile }
+      return { ...base, cmd, args: [], shell: true, useOutputFile, parser: 'none' }
     }
   }
 }

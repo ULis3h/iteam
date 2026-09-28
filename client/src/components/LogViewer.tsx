@@ -7,6 +7,7 @@ const STREAM_CLASS: Record<LogLine['stream'], string> = {
   stdout: 'text-ink',
   stderr: 'text-[#b4562e]',
   system: 'text-accent',
+  event: 'text-[#5b4fb8]',
 }
 
 /** Live log console for a run: filter by step, follow the tail, search. */

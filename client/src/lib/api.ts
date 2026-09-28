@@ -74,6 +74,7 @@ export const api = {
   runLogs: (id: string, stepId?: string) => request<LogLine[]>('GET', `/runs/${id}/logs${stepId ? `?stepId=${stepId}` : ''}`),
   runStep: (runId: string, stepId: string) => request<RunStep>('GET', `/runs/${runId}/steps/${stepId}`),
   quickRun: (agentId: string, prompt: string, name?: string, workDir?: string) => request<Run>('POST', '/runs/quick', { agentId, prompt, name, workDir }),
+  followUp: (runId: string, stepId: string, prompt: string) => request<Run>('POST', `/runs/${runId}/steps/${stepId}/followup`, { prompt }),
   cancelRun: (id: string) => request<Run>('POST', `/runs/${id}/cancel`, {}),
   retryRun: (id: string) => request<Run>('POST', `/runs/${id}/retry`, {}),
   rerun: (id: string) => request<Run>('POST', `/runs/${id}/rerun`, {}),

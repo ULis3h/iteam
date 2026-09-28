@@ -112,6 +112,11 @@ model RunStep {
   effort          String    @default("")
   location        String    @default("local")
   runnerId        String?
+  sessionId       String?   // CLI session / thread id (enables follow-ups)
+  costUsd         Float?
+  inputTokens     Int?
+  outputTokens    Int?
+  turns           Int?
   startedAt       DateTime?
   finishedAt      DateTime?
 

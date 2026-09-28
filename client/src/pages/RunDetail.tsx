@@ -1,11 +1,11 @@
-import { ArrowLeft, RotateCcw, Square, Trash2, Play } from 'lucide-react'
+import { ArrowLeft, MessageSquarePlus, RotateCcw, Square, Trash2, Play } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LogViewer } from '../components/LogViewer'
 import { PipelineGraph } from '../components/PipelineGraph'
 import { RoadmapTimeline } from '../components/RoadmapTimeline'
 import { StatusBadge } from '../components/StatusBadge'
-import { Card, ErrorBanner, Spinner } from '../components/ui'
+import { Card, ErrorBanner, Field, Modal, Spinner } from '../components/ui'
 import { api } from '../lib/api'
 import { formatDuration, formatTime } from '../lib/format'
 import { useT } from '../lib/i18n'
@@ -121,6 +121,11 @@ export function RunDetailPage() {
               {t('common.duration')} {formatDuration(run.startedAt, run.finishedAt, now)}
             </span>
             <span>{t('runs.progress', { done, total: steps.length })}</span>
+            {steps.some((s) => s.costUsd != null) && (
+              <span>
+                {t('runDetail.totalCost')} ${steps.reduce((sum, s) => sum + (s.costUsd ?? 0), 0).toFixed(4)}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -187,10 +192,18 @@ export function RunDetailPage() {
           </Card>
           <Card className="p-5 min-h-[160px]">
             {selectedStep ? (
-              <StepDetail step={selectedStep} now={now} onLogs={() => {
-                setLogStep(selectedStep.id)
-                setTab('logs')
-              }} />
+              <StepDetail
+                step={selectedStep}
+                now={now}
+                onLogs={() => {
+                  setLogStep(selectedStep.id)
+                  setTab('logs')
+                }}
+                onFollowUp={async (prompt) => {
+                  const created = await api.followUp(run.id, selectedStep.id, prompt)
+                  navigate(`/runs/${created.id}`)
+                }}
+              />
             ) : (
               <div className="text-[13px] text-ink-muted h-full flex items-center justify-center text-center">{t('runDetail.selectStep')}</div>
             )}
@@ -216,9 +229,14 @@ export function RunDetailPage() {
   )
 }
 
-function StepDetail({ step, now, onLogs }: { step: RunStep; now: number; onLogs: () => void }) {
+function StepDetail({ step, now, onLogs, onFollowUp }: { step: RunStep; now: number; onLogs: () => void; onFollowUp: (prompt: string) => Promise<void> }) {
   const { t, locale } = useT()
   const [showPrompt, setShowPrompt] = useState(false)
+  const [followOpen, setFollowOpen] = useState(false)
+  const [followPrompt, setFollowPrompt] = useState('')
+  const [followBusy, setFollowBusy] = useState(false)
+  const [followError, setFollowError] = useState<string | null>(null)
+  const canFollowUp = !!step.sessionId && step.provider === 'claude-code' && (step.status === 'succeeded' || step.status === 'failed')
   return (
     <div className="text-[13px] space-y-4 max-w-4xl">
       <div>
@@ -238,6 +256,26 @@ function StepDetail({ step, now, onLogs }: { step: RunStep; now: number; onLogs:
         <dd className="font-mono">{formatDuration(step.startedAt, step.finishedAt, now)}</dd>
         <dt className="text-ink-muted">{t('runDetail.attempt', { n: step.attempt, m: step.maxAttempts })}</dt>
         <dd>{step.exitCode !== null ? `${t('runDetail.exit')} ${step.exitCode}` : '—'}</dd>
+        {step.costUsd != null && (
+          <>
+            <dt className="text-ink-muted">{t('runDetail.cost')}</dt>
+            <dd className="font-mono">${step.costUsd.toFixed(4)}</dd>
+          </>
+        )}
+        {(step.inputTokens != null || step.outputTokens != null) && (
+          <>
+            <dt className="text-ink-muted">{t('runDetail.tokens')}</dt>
+            <dd className="font-mono">
+              {(step.inputTokens ?? 0).toLocaleString()} / {(step.outputTokens ?? 0).toLocaleString()}
+            </dd>
+          </>
+        )}
+        {step.turns != null && (
+          <>
+            <dt className="text-ink-muted">{t('runDetail.turns')}</dt>
+            <dd>{step.turns}</dd>
+          </>
+        )}
       </dl>
       {step.error && (
         <div>
@@ -259,9 +297,50 @@ function StepDetail({ step, now, onLogs }: { step: RunStep; now: number; onLogs:
           {showPrompt && <pre className="mono whitespace-pre-wrap break-words rounded-xl bg-[#f7f7f9] p-3 max-h-64 overflow-auto">{step.prompt}</pre>}
         </div>
       )}
-      <button className="btn-secondary btn-sm" onClick={onLogs}>
-        {t('runDetail.logs')}
-      </button>
+      <div className="flex gap-2">
+        <button className="btn-secondary btn-sm" onClick={onLogs}>
+          {t('runDetail.logs')}
+        </button>
+        {canFollowUp && (
+          <button className="btn-primary btn-sm" onClick={() => setFollowOpen(true)}>
+            <MessageSquarePlus size={13} /> {t('runDetail.followUp')}
+          </button>
+        )}
+      </div>
+      <Modal
+        open={followOpen}
+        onClose={() => setFollowOpen(false)}
+        title={t('runDetail.followUp.title', { name: step.name })}
+        footer={
+          <>
+            <button className="btn-secondary" onClick={() => setFollowOpen(false)}>
+              {t('common.cancel')}
+            </button>
+            <button
+              className="btn-primary"
+              disabled={followBusy || !followPrompt.trim()}
+              onClick={async () => {
+                setFollowBusy(true)
+                setFollowError(null)
+                try {
+                  await onFollowUp(followPrompt.trim())
+                } catch (err) {
+                  setFollowError((err as Error).message)
+                } finally {
+                  setFollowBusy(false)
+                }
+              }}
+            >
+              {t('runDetail.followUp.submit')}
+            </button>
+          </>
+        }
+      >
+        <ErrorBanner message={followError} onClose={() => setFollowError(null)} />
+        <Field label={t('runDetail.followUp')} hint={t('runDetail.followUp.hint')}>
+          <textarea className="textarea min-h-[120px]" autoFocus placeholder={t('runDetail.followUp.placeholder')} value={followPrompt} onChange={(e) => setFollowPrompt(e.target.value)} />
+        </Field>
+      </Modal>
     </div>
   )
 }

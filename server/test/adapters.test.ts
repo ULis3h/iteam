@@ -18,10 +18,16 @@ describe('buildJob', () => {
   it('builds a Claude Code print-mode command with model, effort and skip-permissions', () => {
     const job = buildJob('j1', base, 'hello')
     expect(job.cmd).toBe('claude')
-    expect(job.args).toEqual(['-p', '--output-format', 'text', '--model', 'sonnet', '--effort', 'high', '--dangerously-skip-permissions'])
+    expect(job.args).toEqual(['-p', '--output-format', 'stream-json', '--verbose', '--model', 'sonnet', '--effort', 'high', '--dangerously-skip-permissions'])
     expect(job.stdin).toBe('hello')
     expect(job.shell).toBe(false)
     expect(job.useOutputFile).toBe(false)
+    expect(job.parser).toBe('claude-stream-json')
+  })
+
+  it('resumes a session for follow-up prompts', () => {
+    const job = buildJob('j1', { ...base, resumeSessionId: 'sess-123' }, 'more')
+    expect(job.args.slice(0, 6)).toEqual(['-p', '--output-format', 'stream-json', '--verbose', '--resume', 'sess-123'])
   })
 
   it('uses acceptEdits when auto-approve is off and appends extra args', () => {
@@ -35,6 +41,8 @@ describe('buildJob', () => {
     const job = buildJob('j2', { ...base, provider: 'codex', model: 'gpt-5-codex', effort: 'max' }, 'p')
     expect(job.cmd).toBe('codex')
     expect(job.args[0]).toBe('exec')
+    expect(job.args).toContain('--json')
+    expect(job.parser).toBe('codex-json')
     expect(job.args).toContain('-o')
     expect(job.args).toContain('{{outputFile}}')
     expect(job.args).toContain('model_reasoning_effort="xhigh"')
@@ -61,6 +69,6 @@ describe('buildJob', () => {
   })
 
   it('describes jobs as a shell-like preview', () => {
-    expect(describeJob(buildJob('j6', { ...base, model: '' }, 'p'))).toBe('claude -p --output-format text --effort high --dangerously-skip-permissions')
+    expect(describeJob(buildJob('j6', { ...base, model: '' }, 'p'))).toBe('claude -p --output-format stream-json --verbose --effort high --dangerously-skip-permissions')
   })
 })
