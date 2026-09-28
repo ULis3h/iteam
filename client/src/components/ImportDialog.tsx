@@ -225,9 +225,20 @@ export function ImportDialog({ open, onClose, onImported }: { open: boolean; onC
                 <div className="text-[11px] text-ink-muted mb-1">{t('import.agents')}</div>
                 <ul className="space-y-1">
                   {preview.agents?.map((a) => (
-                    <li key={a.name} className="flex items-center justify-between gap-2">
-                      <span>{a.name}</span>
-                      <span className={`text-[11px] ${a.status === 'existing' ? 'text-status-success' : a.status === 'create' ? 'text-accent' : 'text-status-cancelled'}`}>{t(`import.agent.${a.status}` as never)}</span>
+                    <li key={a.name}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{a.name}</span>
+                        <span className={`text-[11px] ${a.status === 'existing' ? 'text-status-success' : a.status === 'create' ? 'text-accent' : 'text-status-cancelled'}`}>{t(`import.agent.${a.status}` as never)}</span>
+                      </div>
+                      {a.detail && (
+                        <div className={`text-[11px] mono break-all ${a.detail.command ? 'text-status-cancelled' : 'text-ink-muted'}`}>
+                          {a.detail.provider === 'custom' ? `${t('import.customCommand')}: ${a.detail.command}` : `${a.detail.provider}${a.detail.model ? ` / ${a.detail.model}` : ''}`}
+                          {' · '}
+                          {a.detail.autoApprove ? t('import.autoApprove') : t('import.manualApprove')}
+                          {a.detail.workDir ? ` · ${a.detail.workDir}` : ''}
+                          {a.detail.envKeys.length ? ` · env: ${a.detail.envKeys.join(', ')}` : ''}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

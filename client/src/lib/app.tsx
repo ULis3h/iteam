@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, getToken, setToken, setUnauthorizedHandler } from './api'
-import { resetSocket } from './socket'
+import { api, ApiError, getToken, setToken, setUnauthorizedHandler } from './api'
+import { onSocketAuthFailure, resetSocket } from './socket'
 import type { SystemInfo } from '../types'
 
 interface AppState {
   system: SystemInfo | null
   reloadSystem: (refresh?: boolean) => Promise<void>
   needsToken: boolean
-  submitToken: (token: string) => Promise<boolean>
+  submitToken: (token: string, remember?: boolean) => Promise<boolean>
   clearToken: () => void
   error: string | null
 }
@@ -29,8 +29,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.verifyToken()
           setNeedsToken(false)
-        } catch {
-          setNeedsToken(true)
+          // /system returns more once authenticated (capabilities, paths)
+          setSystem(await api.system())
+        } catch (err) {
+          // only a real 401 means the token is wrong; network errors keep the current state
+          if (err instanceof ApiError && err.status === 401) setNeedsToken(true)
+          else setError((err as Error).message)
         }
       } else {
         setNeedsToken(false)
@@ -43,6 +47,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void reloadSystem()
     setUnauthorizedHandler(() => setNeedsToken(true))
+    const off = onSocketAuthFailure(() => setNeedsToken(true))
+    return () => {
+      off()
+    }
   }, [reloadSystem])
 
   const value = useMemo<AppState>(
@@ -51,17 +59,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       reloadSystem,
       needsToken,
       error,
-      submitToken: async (token) => {
-        setToken(token)
+      submitToken: async (token, remember = false) => {
         try {
-          await api.verifyToken()
-          resetSocket()
-          setNeedsToken(false)
-          return true
-        } catch {
-          setToken('')
+          await api.verifyToken(token) // verify before persisting so a typo cannot evict a working token
+        } catch (err) {
+          if (err instanceof ApiError && err.status !== 401) setError(err.message)
           return false
         }
+        setToken(token, remember)
+        resetSocket()
+        setNeedsToken(false)
+        void reloadSystem()
+        return true
       },
       clearToken: () => {
         setToken('')

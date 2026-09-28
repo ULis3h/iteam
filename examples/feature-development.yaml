@@ -22,6 +22,9 @@ agents:
     provider: claude-code
     model: sonnet
     effort: medium
+    # 后端与前端步骤同时运行在同一个仓库里：它们改动不同目录，所以允许并行 2 个。
+    # 若你的项目前后端耦合较紧，把它改回 1，两步会自动串行。
+    maxConcurrent: 2
   - name: 评审员
     role: 你是严格的代码评审员。关注正确性、安全性与可维护性，给出明确的通过/不通过结论。
     provider: claude-code
@@ -32,8 +35,8 @@ steps:
   - id: design
     name: 方案设计
     agent: 架构师
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库位于 {{inputs.repo}}。
       请为以下功能设计技术方案：{{inputs.feature}}
     expectedOutput: Markdown 方案，包含改动文件清单与接口定义
 
@@ -41,16 +44,18 @@ steps:
     name: 后端实现
     agent: 开发者
     dependsOn: [design]
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库位于 {{inputs.repo}}。根据以下方案实现后端部分，不要改动前端代码：
+      根据以下方案实现后端部分，不要改动前端代码：
       {{steps.design.output}}
 
   - id: frontend
     name: 前端实现
     agent: 开发者
     dependsOn: [design]
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库位于 {{inputs.repo}}。根据以下方案实现前端部分，不要改动后端代码：
+      根据以下方案实现前端部分，不要改动后端代码：
       {{steps.design.output}}
 
   - id: test
@@ -58,8 +63,9 @@ steps:
     agent: 开发者
     dependsOn: [backend, frontend]
     retries: 1
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库位于 {{inputs.repo}}。为本次改动补充测试并运行全部测试，修复失败项。
+      为本次改动补充测试并运行全部测试，修复失败项。
       后端改动摘要：{{steps.backend.output}}
       前端改动摘要：{{steps.frontend.output}}
 
@@ -67,7 +73,8 @@ steps:
     name: 代码评审
     agent: 评审员
     dependsOn: [test]
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库位于 {{inputs.repo}}。评审本次全部改动（git diff），并给出结论。
+      评审本次全部改动（git diff），并给出结论。
       测试结果：{{steps.test.output}}
     expectedOutput: 评审报告：问题清单 + 通过/不通过

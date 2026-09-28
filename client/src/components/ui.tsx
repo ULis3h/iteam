@@ -39,7 +39,7 @@ export function Field({ label, hint, children, required }: { label: string; hint
   )
 }
 
-export function Modal({ open, onClose, title, children, footer, wide, confirmClose }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean; confirmClose?: () => boolean }) {
+export function Modal({ open, onClose, title, children, footer, wide, confirmClose, closeLabel }: { open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean; confirmClose?: () => boolean; closeLabel?: string }) {
   const close = () => {
     if (confirmClose && !confirmClose()) return
     onClose()
@@ -57,7 +57,7 @@ export function Modal({ open, onClose, title, children, footer, wide, confirmClo
       <div role="dialog" aria-modal="true" aria-label={title} className={`card w-full ${wide ? 'max-w-4xl' : 'max-w-xl'} max-h-[90vh] flex flex-col bg-white fade-in`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-line">
           <h2 className="text-[16px] font-semibold">{title}</h2>
-          <button className="btn-ghost btn-sm !px-2" onClick={close} aria-label="close">
+          <button className="btn-ghost btn-sm !px-2" onClick={close} aria-label={closeLabel ?? 'Close'}>
             <X size={16} />
           </button>
         </div>
@@ -127,4 +127,28 @@ export function Section({ title, description, children, actions }: { title: stri
       {children}
     </section>
   )
+}
+
+import { Component, type ErrorInfo } from 'react'
+
+export class ErrorBoundary extends Component<{ children: ReactNode; label: string; reload: string }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('render error', error, info.componentStack)
+  }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="card p-8 text-center fade-in">
+        <p className="font-medium mb-2">{this.props.label}</p>
+        <pre className="mono text-status-failed whitespace-pre-wrap break-words mb-4 text-left max-h-40 overflow-auto">{this.state.error.message}</pre>
+        <button className="btn-primary" onClick={() => window.location.reload()}>
+          {this.props.reload}
+        </button>
+      </div>
+    )
+  }
 }

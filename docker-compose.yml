@@ -4,9 +4,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Optional: require a token for the web UI and runners
+      # Strongly recommended: the API is reachable from the network inside a container
       ITEAM_TOKEN: ${ITEAM_TOKEN:-}
+      # Optional separate credential for runners (defaults to ITEAM_TOKEN)
+      ITEAM_RUNNER_TOKEN: ${ITEAM_RUNNER_TOKEN:-}
       ITEAM_MAX_PARALLEL: ${ITEAM_MAX_PARALLEL:-4}
+      ITEAM_RETENTION_DAYS: ${ITEAM_RETENTION_DAYS:-0}
       # Credentials for the agent CLIs inside the container
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

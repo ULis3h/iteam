@@ -162,6 +162,20 @@ export interface Run {
   workflow?: { id: string; name: string } | null
 }
 
+/** Shape returned by GET /runs (steps are a projection). */
+export interface RunStepSummary {
+  id: string
+  key: string
+  name: string
+  status: StepStatus
+  agentName: string
+  order: number
+  dependsOn: string[]
+  startedAt: string | null
+  finishedAt: string | null
+  costUsd: number | null
+}
+
 export interface LogLine {
   runId: string
   stepId: string
@@ -188,7 +202,11 @@ export interface ImportPreview {
   description?: string
   inputs?: WorkflowInput[]
   steps?: Array<{ id: string; name: string; agent: string; dependsOn: string[] }>
-  agents?: Array<{ name: string; status: 'existing' | 'create' | 'create-default' }>
+  agents?: Array<{
+    name: string
+    status: 'existing' | 'create' | 'create-default'
+    detail?: { provider: string; model: string; command: string; autoApprove: boolean; workDir: string; location: string; envKeys: string[] }
+  }>
   stages?: string[][]
   warnings?: string[]
 }

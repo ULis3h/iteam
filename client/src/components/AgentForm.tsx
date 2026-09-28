@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
-import { AGENT_PRESETS } from '../lib/presets'
+import { AGENT_PRESETS, presetModel } from '../lib/presets'
 import type { Agent, AgentInput, Effort, Location, Provider, Runner } from '../types'
 import { ErrorBanner, Field, InfoBanner, Modal, Toggle } from './ui'
 
@@ -131,7 +131,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
             onChange={(e) => {
               const preset = AGENT_PRESETS.find((p) => p.id === e.target.value)
               if (!preset) return
-              update({ name: form.name || t(preset.nameKey), role: t(preset.roleKey), provider: preset.provider, model: preset.model, effort: preset.effort })
+              update({ name: form.name || t(preset.nameKey), role: t(preset.roleKey), model: presetModel(form.provider, preset.tier), effort: preset.effort })
             }}
           >
             <option value="">{t('agents.form.presetNone')}</option>
@@ -144,7 +144,7 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label={t('agents.form.name')} required>
-            <input className="input" value={form.name} onChange={(e) => update({ name: e.target.value })} placeholder="e.g. 架构师 / Reviewer" autoFocus />
+            <input className="input" value={form.name} onChange={(e) => update({ name: e.target.value })} placeholder={t('agents.form.namePlaceholder')} autoFocus />
           </Field>
           <Field label={t('agents.form.description')}>
             <input className="input" value={form.description} onChange={(e) => update({ description: e.target.value })} />

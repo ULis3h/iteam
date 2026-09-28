@@ -24,13 +24,12 @@ export const formatTime = (iso?: string | null, locale = 'zh-CN'): string => {
 export const relativeTime = (iso: string, locale: 'zh-CN' | 'en'): string => {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
-  const zh = locale === 'zh-CN'
-  if (m < 1) return zh ? '刚刚' : 'just now'
-  if (m < 60) return zh ? `${m} 分钟前` : `${m}m ago`
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  if (m < 1) return rtf.format(0, 'minute')
+  if (m < 60) return rtf.format(-m, 'minute')
   const h = Math.floor(m / 60)
-  if (h < 24) return zh ? `${h} 小时前` : `${h}h ago`
-  const d = Math.floor(h / 24)
-  return zh ? `${d} 天前` : `${d}d ago`
+  if (h < 24) return rtf.format(-h, 'hour')
+  return rtf.format(-Math.floor(h / 24), 'day')
 }
 
 export const statusColor = (status: RunStatus | StepStatus): string => {

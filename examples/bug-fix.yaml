@@ -32,22 +32,25 @@ steps:
   - id: reproduce
     name: 复现问题
     agent: 复现者
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库 {{inputs.repo}}。问题：{{inputs.bug}}
+      问题：{{inputs.bug}}
       定位根因并添加一个失败的测试用例来复现它。输出：根因分析 + 测试文件路径。
   - id: fix
     name: 修复
     agent: 修复者
     dependsOn: [reproduce]
     retries: 1
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库 {{inputs.repo}}。根据以下分析修复问题，并让复现测试通过：
+      根据以下分析修复问题，并让复现测试通过：
       {{steps.reproduce.output}}
   - id: verify
     name: 验证
     agent: 验证者
     dependsOn: [fix]
+    workDir: "{{inputs.repo}}"
     prompt: |
-      仓库 {{inputs.repo}}。运行全部测试，检查以下修复是否完整、有无回归：
+      运行全部测试，检查以下修复是否完整、有无回归：
       {{steps.fix.output}}
     expectedOutput: 验证结论（通过 / 不通过）与理由

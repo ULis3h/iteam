@@ -29,6 +29,7 @@ agents:                           # 可选。只在同名 Agent 不存在时用�
     env: { MY_FLAG: "1" }
     autoApprove: true
     timeoutSec: 1800
+    maxConcurrent: 1              # 该 Agent 同时执行的步骤数
 
 steps:                            # 必填，至少一个
   - id: design                    # 必填，唯一，字母开头
@@ -41,8 +42,9 @@ steps:                            # 必填，至少一个
     model: sonnet                 # 覆盖 Agent 模型
     effort: medium                # 覆盖 Agent 思考强度
     timeoutSec: 600               # 覆盖超时
-    retries: 1                    # 失败重试次数（0–5）
+    retries: 1                    # 失败重试次数（0–5，指数退避）
     continueOnError: false        # 失败时不阻塞下游
+    workDir: "{{inputs.repo}}"    # 覆盖工作目录，可用模板变量
 
   - id: implement
     name: 实现
@@ -63,7 +65,7 @@ steps:                            # 必填，至少一个
 | `{{run.name}}` `{{run.id}}` | 本次运行 |
 | `{{workflow.name}}` | 工作流名称 |
 
-未定义的变量渲染为空字符串，并在该步骤日志中给出警告。
+未定义的变量渲染为空字符串，并在该步骤日志中给出警告；保存与导入时会提前检查引用（未声明的输入、引用了未依赖的步骤）。工作目录里的模板变量必须能解析，否则该步骤失败。
 
 ## 导入规则
 
@@ -89,4 +91,4 @@ steps:                            # 必填，至少一个
 
 ## English summary
 
-A workflow file has `name`, optional `description`, optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`) and required `steps` (`id`, `name`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`). Prompts can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids, existing dependencies, no cycles) before import.
+A workflow file has `name`, optional `description`, optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`). Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.

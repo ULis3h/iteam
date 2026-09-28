@@ -13,7 +13,8 @@ export function SettingsPage() {
   const [copied, setCopied] = useState(false)
   const [checking, setChecking] = useState(false)
 
-  const origin = window.location.origin.replace(/:5173$/, ':3000')
+  const serverPort = window.location.port === '5173' ? '3000' : window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+  const origin = `${window.location.protocol}//${window.location.hostname}:${serverPort}`
   const runnerCmd = `git clone https://github.com/ULis3h/iteam.git && cd iteam/runner && npm install\n${system?.authRequired ? 'ITEAM_TOKEN=<token> ' : ''}node bin/iteam-runner.js --server ${origin} --name my-machine --max-jobs 2`
 
   const copy = async () => {
@@ -29,7 +30,7 @@ export function SettingsPage() {
           <Card className="p-5 space-y-3 text-[13px]">
             <Row label={t('settings.version')} value={system?.version ?? '—'} />
             <Row label={t('settings.auth')} value={system?.authRequired ? t('settings.auth.on') : t('settings.auth.off')} />
-            <Row label={t('settings.host')} value={<span className="mono">{system?.host ?? '—'}:{window.location.port || '3000'}</span>} />
+            <Row label={t('settings.host')} value={<span className="mono">{system?.host ?? '—'}:{serverPort}</span>} />
             <Row label={t('settings.maxParallel')} value={String(system?.maxParallel ?? '—')} />
             <Row label={t('settings.retention')} value={system?.retentionDays ? t('settings.retention.days', { n: system.retentionDays }) : t('settings.retention.off')} />
             <Row label={t('settings.workDir')} value={<span className="mono break-all">{system?.defaultWorkDir ?? '—'}</span>} />

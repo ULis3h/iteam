@@ -88,14 +88,20 @@ export function workflowRoutes(ctx: AppContext) {
         const existing = await ctx.prisma.agent.findMany({ select: { name: true } })
         const lower = new Set(existing.map((a) => a.name.toLowerCase()))
         const have = new Set(names.filter((n) => lower.has(n.toLowerCase())))
-        const inline = new Set(file.agents.map((a) => a.name))
+        const inline = new Map(file.agents.map((a) => [a.name, a]))
         res.json({
           ok: true,
           name: file.name,
           description: file.description,
           inputs: file.inputs,
           steps: file.steps.map((s) => ({ id: s.id, name: s.name, agent: s.agent, dependsOn: s.dependsOn })),
-          agents: names.map((n) => ({ name: n, status: have.has(n) ? 'existing' : inline.has(n) ? 'create' : 'create-default' })),
+          agents: names.map((n) => {
+            const spec = inline.get(n)
+            const status = have.has(n) ? 'existing' : spec ? 'create' : 'create-default'
+            // show exactly what an imported agent would execute before anything is created
+            const detail = status === 'existing' ? undefined : { provider: spec?.provider ?? 'claude-code', model: spec?.model ?? '', command: spec?.command ?? '', autoApprove: spec?.autoApprove ?? true, workDir: spec?.workDir ?? '', location: spec?.location ?? 'local', envKeys: Object.keys(spec?.env ?? {}) }
+            return { name: n, status, detail }
+          }),
           stages: stages(file.steps.map((s) => ({ id: s.id, dependsOn: s.dependsOn }))),
           warnings: templateIssues(file),
         })

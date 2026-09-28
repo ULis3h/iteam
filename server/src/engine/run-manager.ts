@@ -357,6 +357,12 @@ export class RunManager {
       workflow: { name: def.name },
     }
     const rendered = renderTemplate(stepDef.prompt, context)
+    // the working directory may reference inputs too, e.g. workDir: "{{inputs.repo}}"
+    if (/\{\{/.test(runtime.workDir)) {
+      const dir = renderTemplate(runtime.workDir, context)
+      if (dir.missing.length) return this.failStep(run, step, `working directory template is unresolved: ${dir.missing.join(', ')}`, false)
+      runtime = { ...runtime, workDir: dir.text.trim() }
+    }
     const parts: string[] = []
     if (runtime.role.trim() && !runtime.resumeSessionId) parts.push(runtime.role.trim(), '---')
     parts.push(rendered.text.trim())

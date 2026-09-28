@@ -15,7 +15,7 @@
     "start": "npm run start -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
     "runner": "node runner/bin/iteam-runner.js",
-    "test": "npm test -w server"
+    "test": "npm test -w server && npm test -w runner"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

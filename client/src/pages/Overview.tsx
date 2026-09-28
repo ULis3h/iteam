@@ -35,7 +35,7 @@ export function OverviewPage() {
   useEffect(() => {
     void load()
   }, [load])
-  useSocketEvent(['run:changed', 'agent:changed', 'agent:deleted', 'runner:changed', 'workflow:changed', 'run:deleted'], load)
+  useSocketEvent(['run:changed', 'agent:changed', 'agent:deleted', 'runner:changed', 'workflow:changed', 'run:deleted'], load, 300)
   useReconnect(load)
   // step events are frequent: refresh at most once a second
   const throttle = useRef<ReturnType<typeof setTimeout> | null>(null)

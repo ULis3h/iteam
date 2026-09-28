@@ -27,8 +27,8 @@ iTeam turns the agent CLIs you already have into a team. You define **agents** (
 | **Agents** | Claude Code, Codex CLI, Gemini CLI, or a custom command. Per-agent model, effort (`low / medium / high / max`), role instructions, working directory, timeout. |
 | **Local or remote** | Local agents run on the server. Remote agents run on any machine that starts the lightweight runner. |
 | **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error. |
-| **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs, rendered prompt and output, cancel, retry failed steps, run again. |
-| **Import / export** | Workflows are plain YAML or JSON files. Import from the UI (agents are created from the file), export any workflow. |
+| **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs with readable agent events (tool calls, results), cost and tokens per step, rendered prompt and output, cancel, retry failed steps, run again, follow-up prompts in the same Claude Code session. |
+| **Import / export** | Workflows are plain YAML or JSON files. Built-in templates, import from the UI (agents are created from the file, preview shows what they will run), export any workflow. |
 | **Quick task** | One prompt on one agent, no workflow needed. |
 
 ## Quick start
@@ -48,7 +48,7 @@ Open <http://localhost:5173>.
 2. **Workflows → Import** — paste [`examples/feature-development.yaml`](./examples/feature-development.yaml) (or build one in the editor).
 3. **Run** — fill in the inputs and watch the pipeline.
 
-Single-port production mode: `npm run build && npm start` serves the UI and API on port 3000.
+Single-port production mode: `npm run build && npm start` serves the UI and API on port 3000. Docker: `docker compose up -d` (set `ITEAM_TOKEN` and your CLI API keys in `.env`). The server listens on `127.0.0.1` until `ITEAM_TOKEN` is set.
 
 ## A workflow file
 
@@ -87,19 +87,23 @@ More in [`examples/`](./examples). Full reference: [docs/workflow-format.md](./d
 
 ```bash
 cd runner && npm install
-node bin/iteam-runner.js --server http://SERVER:3000 --token <ITEAM_TOKEN> --name my-mac
+ITEAM_TOKEN=<token> node bin/iteam-runner.js --server http://SERVER:3000 --name my-mac --max-jobs 2
 ```
 
 The machine appears under **Agents → Runners**; create an agent with location *remote* and pick it. See [docs/runner.md](./docs/runner.md).
 
+## Safety
+
+Agents run unattended with auto-approval in the directories you choose, so the API is an admin interface: it binds to localhost until you set `ITEAM_TOKEN`, runners can use a separate credential, agent processes never see the server's secrets, and env values are masked in the UI and exports. Details in [SECURITY.md](./SECURITY.md).
+
 ## Project layout
 
 ```
-server/   Express + Prisma (SQLite) + Socket.IO — API, scheduler, executors
+server/   Express + Prisma (SQLite) + Socket.IO — API, scheduler, executors, tests
 client/   React + Vite + Tailwind — the web UI
 runner/   Node CLI — executes steps on remote machines
 docs/     Documentation
-examples/ Importable workflow files
+examples/ Importable workflow files (also the in-app template gallery)
 ```
 
 ## License

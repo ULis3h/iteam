@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { ErrorBanner, Spinner } from './components/ui'
+import { ErrorBanner, ErrorBoundary, Spinner } from './components/ui'
 import { AppProvider, useApp } from './lib/app'
 import { DirtyProvider } from './lib/dirty'
 import { I18nProvider, useT } from './lib/i18n'
@@ -47,6 +47,7 @@ function Shell() {
   if (needsToken) return <TokenGate />
   return (
     <DirtyProvider message={t('app.unsavedConfirm')}>
+      <ErrorBoundary label={t('app.renderError')} reload={t('app.retry')}>
       <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -62,6 +63,7 @@ function Shell() {
         </Route>
       </Routes>
       </BrowserRouter>
+      </ErrorBoundary>
     </DirtyProvider>
   )
 }

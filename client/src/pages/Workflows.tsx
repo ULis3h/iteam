@@ -34,7 +34,7 @@ export function WorkflowsPage() {
   useEffect(() => {
     void load()
   }, [load])
-  useSocketEvent(['workflow:changed', 'workflow:deleted', 'run:changed'], load)
+  useSocketEvent(['workflow:changed', 'workflow:deleted', 'run:changed'], load, 300)
 
   const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? '?'
 

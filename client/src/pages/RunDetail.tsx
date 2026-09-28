@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { LogViewer } from '../components/LogViewer'
 import { PipelineGraph } from '../components/PipelineGraph'
 import { RoadmapTimeline } from '../components/RoadmapTimeline'
+import { RunDialog } from '../components/RunDialog'
 import { StatusBadge } from '../components/StatusBadge'
 import { Card, ErrorBanner, Field, Modal, Spinner } from '../components/ui'
 import { api } from '../lib/api'
@@ -24,6 +25,7 @@ export function RunDetailPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [logStep, setLogStep] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [rerunOpen, setRerunOpen] = useState(false)
   const [now, setNow] = useState(Date.now())
   const seen = useRef(new Set<string>())
   const pendingSteps = useRef<RunStep[]>([])
@@ -171,7 +173,7 @@ export function RunDetailPage() {
                   <RotateCcw size={14} /> {t('runDetail.retry')}
                 </button>
               )}
-              <button className="btn-secondary" onClick={() => api.rerun(run.id).then((r) => navigate(`/runs/${r.id}`)).catch((e) => setError(e.message))}>
+              <button className="btn-secondary" onClick={() => setRerunOpen(true)}>
                 <Play size={14} /> {t('runDetail.rerun')}
               </button>
               <button
@@ -274,6 +276,16 @@ export function RunDetailPage() {
           <LogViewer logs={logs} steps={steps} stepId={logStep} onStepChange={setLogStep} />
         </Card>
       )}
+      <RunDialog
+        open={rerunOpen}
+        name={run.name}
+        inputs={(run.snapshot?.inputs ?? []).map((i) => ({ ...i, default: run.inputs[i.key] ?? i.default }))}
+        onClose={() => setRerunOpen(false)}
+        onStart={async (values, name) => {
+          const created = await api.rerun(run.id, values, name)
+          navigate(`/runs/${created.id}`)
+        }}
+      />
     </div>
   )
 }

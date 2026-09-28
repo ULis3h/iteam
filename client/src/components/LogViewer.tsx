@@ -39,7 +39,7 @@ export function LogViewer({ logs, steps, stepId, onStepChange }: { logs: LogLine
           ))}
         </select>
         <input className="input w-56" placeholder={t('runDetail.logsFilter')} value={filter} onChange={(e) => setFilter(e.target.value)} />
-        <span className="text-[12px] text-ink-muted ml-auto">{visible.length} lines</span>
+        <span className="text-[12px] text-ink-muted ml-auto">{t('runDetail.lines', { n: visible.length })}</span>
         <Toggle checked={follow} onChange={setFollow} label={t('runDetail.follow')} />
       </div>
       <div

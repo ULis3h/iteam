@@ -36,17 +36,20 @@ steps:
   - id: security
     name: 安全审查
     agent: 安全审查
-    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出安全问题，每条包含位置、风险与修复建议。
+    workDir: "{{inputs.repo}}"
+    prompt: 评审范围 {{inputs.range}}。列出安全问题，每条包含位置、风险与修复建议。
     continueOnError: true
   - id: perf
     name: 性能审查
     agent: 性能审查
-    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出性能问题，每条包含位置、影响与修复建议。
+    workDir: "{{inputs.repo}}"
+    prompt: 评审范围 {{inputs.range}}。列出性能问题，每条包含位置、影响与修复建议。
     continueOnError: true
   - id: maintain
     name: 可维护性审查
     agent: 可维护性审查
-    prompt: 仓库 {{inputs.repo}}，评审范围 {{inputs.range}}。列出可维护性问题，每条包含位置与建议。
+    workDir: "{{inputs.repo}}"
+    prompt: 评审范围 {{inputs.range}}。列出可维护性问题，每条包含位置与建议。
     continueOnError: true
   - id: summary
     name: 汇总报告

@@ -293,6 +293,22 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSW
     expect(run.steps[0].output).toBe(sub)
   })
 
+  it('renders template variables in the working directory and fails clearly when unresolved', async () => {
+    const pwd = await prisma.agent.findUniqueOrThrow({ where: { name: 'pwd' } })
+    const sub = path.join(dir, 'templated-ws')
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(sub, { recursive: true })
+    const def: WorkflowDefinition = { name: 'tpl', description: '', inputs: [{ key: 'repo' }], steps: [{ id: 's', name: 'S', agentId: pwd.id, prompt: 'x', dependsOn: [], workDir: '{{inputs.repo}}' }] }
+    const ok = await manager.createRun(def, { inputs: { repo: sub } })
+    await manager.start(ok.id)
+    expect((await waitFor(ok.id, finished)).steps[0].output).toBe(sub)
+    const bad = await manager.createRun({ ...def, steps: [{ ...def.steps[0], workDir: '{{inputs.nope}}' }] }, { inputs: { repo: sub } })
+    await manager.start(bad.id)
+    const failed = await waitFor(bad.id, finished)
+    expect(failed.status).toBe('failed')
+    expect(failed.steps[0].error).toMatch(/working directory template is unresolved: inputs.nope/)
+  })
+
   it('keeps multi-byte UTF-8 intact across chunk boundaries and strips orchestrator secrets from the env', async () => {
     process.env.ITEAM_TOKEN = 'secret-token'
     const zh = await makeAgent('zh', `cat >/dev/null; printf '中文输出' | head -c 4; sleep 0.1; printf '中文输出' | tail -c +5; echo; echo "TOKEN=[\${ITEAM_TOKEN:-}] DB=[\${DATABASE_URL:-}]"`, { env: JSON.stringify({ MY_KEY: 'v1' }) })

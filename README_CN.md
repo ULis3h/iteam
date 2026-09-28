@@ -27,8 +27,8 @@ iTeam 把你已有的 Agent CLI 组成一个团队。你定义 **Agent**（角�
 | **Agent** | Claude Code、Codex CLI、Gemini CLI 或自定义命令。每个 Agent 单独设置模型、思考强度（`low / medium / high / max`）、角色指令、工作目录、超时。 |
 | **本地或远程** | 本地 Agent 在服务器上执行；远程 Agent 在任何启动了 runner 的机器上执行。 |
 | **工作流** | 步骤构成 DAG。`{{inputs.x}}`、`{{steps.id.output}}` 在步骤间传递数据。支持按步骤覆盖模型/思考强度、失败重试、超时、失败不阻塞下游。 |
-| **运行记录** | 流水线视图、阶段路线图 + 时间线、按步骤的实时日志、实际提示词与输出、取消、重试失败步骤、重新运行。 |
-| **导入 / 导出** | 工作流就是 YAML / JSON 文件。从界面导入（缺失的 Agent 按文件定义自动创建），任意工作流可导出。 |
+| **运行记录** | 流水线视图、阶段路线图 + 时间线、按步骤的实时日志（工具调用与结果被整理成可读事件）、每步费用与 Token、实际提示词与输出、取消、重试失败步骤、重新运行，Claude Code 步骤可在同一会话里追问。 |
+| **导入 / 导出** | 工作流就是 YAML / JSON 文件。内置模板、界面导入（缺失的 Agent 按文件定义自动创建，预览会显示它们将执行什么），任意工作流可导出。 |
 | **快速任务** | 一个 Agent、一句话，直接执行，不用先建工作流。 |
 
 ## 快速开始
@@ -48,7 +48,7 @@ npm run dev
 2. **工作流 → 导入**：粘贴 [`examples/feature-development.yaml`](./examples/feature-development.yaml)（或在编辑器里手动创建）。
 3. **运行**：填写输入参数，看着流水线跑起来。
 
-生产单端口模式：`npm run build && npm start`，界面和 API 都在 3000 端口。
+生产单端口模式：`npm run build && npm start`，界面和 API 都在 3000 端口。Docker：`docker compose up -d`（在 `.env` 里设置 `ITEAM_TOKEN` 和 CLI 的 API Key）。未设置 `ITEAM_TOKEN` 时服务只监听本机。
 
 ## 一个工作流文件
 
@@ -87,19 +87,23 @@ steps:
 
 ```bash
 cd runner && npm install
-node bin/iteam-runner.js --server http://SERVER:3000 --token <ITEAM_TOKEN> --name my-mac
+ITEAM_TOKEN=<令牌> node bin/iteam-runner.js --server http://SERVER:3000 --name my-mac --max-jobs 2
 ```
 
 这台机器会出现在 **Agent → Runner** 中；新建 Agent 时选择「远程」并指定它即可。详见 [docs/runner.md](./docs/runner.md)。
 
+## 安全
+
+Agent 会在你指定的目录里以自动批准模式无人值守地执行，所以 API 相当于管理后台：未设置 `ITEAM_TOKEN` 时只监听本机，Runner 可用独立凭证，Agent 进程看不到服务端的密钥，环境变量在界面和导出中都会被掩码。详见 [SECURITY.md](./SECURITY.md)。
+
 ## 目录结构
 
 ```
-server/   Express + Prisma (SQLite) + Socket.IO —— API、调度器、执行器
+server/   Express + Prisma (SQLite) + Socket.IO —— API、调度器、执行器、测试
 client/   React + Vite + Tailwind —— Web 界面
 runner/   Node CLI —— 在远程机器上执行步骤
 docs/     文档
-examples/ 可导入的工作流示例
+examples/ 可导入的工作流示例（也是界面里的内置模板）
 ```
 
 ## License

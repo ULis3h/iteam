@@ -32,7 +32,7 @@ export function AgentsPage() {
   useEffect(() => {
     void load()
   }, [load])
-  useSocketEvent(['agent:changed', 'agent:deleted', 'runner:changed', 'runner:deleted', 'step:changed'], load)
+  useSocketEvent(['agent:changed', 'agent:deleted', 'runner:changed', 'runner:deleted', 'step:changed'], load, 300)
 
   const providerLabel = (id: string) => system?.providers.find((p) => p.id === id)?.label ?? id
 

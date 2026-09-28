@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { storage } from './storage'
 
 export type Locale = 'zh-CN' | 'en'
 
@@ -258,6 +259,7 @@ const zh = {
   'app.notFound': '页面不存在',
   'app.serverUnreachable': '无法连接服务器（{error}）。请确认服务已在 3000 端口运行。',
   'app.retry': '重试',
+  'app.renderError': '页面渲染出错了。',
   'app.unsavedConfirm': '有未保存的更改，确定离开吗？',
   'editor.noAgents': '还没有 Agent。先创建一个，再回来给步骤分配。',
   'editor.notFound': '工作流不存在或已被删除。',
@@ -277,6 +279,15 @@ const zh = {
   'import.openWorkflow': '打开工作流',
   'import.openRun': '查看运行',
   'agents.form.modelReset': '模型已清空：原模型不属于新选择的 CLI。',
+  'token.remember': '在此设备上记住令牌',
+  'agents.form.namePlaceholder': '例如：架构师、评审员',
+  'runDetail.lines': '{n} 行',
+  'common.closeLabel': '关闭',
+  'import.agentDetail': '{provider}{model} · {approve}{workDir}',
+  'import.autoApprove': '自动批准',
+  'import.manualApprove': '仅允许编辑',
+  'import.customCommand': '自定义命令',
+  'runDetail.rerunTitle': '重新运行「{name}」',
   'settings.title': '设置',
   'settings.server': '服务器',
   'settings.version': '版本',
@@ -560,6 +571,7 @@ const en: Record<keyof typeof zh, string> = {
   'app.notFound': 'Page not found',
   'app.serverUnreachable': 'Cannot reach the server ({error}). Make sure it is running on port 3000.',
   'app.retry': 'Retry',
+  'app.renderError': 'Something went wrong while rendering this page.',
   'app.unsavedConfirm': 'You have unsaved changes. Leave anyway?',
   'editor.noAgents': 'No agents yet. Create one first, then assign it to steps.',
   'editor.notFound': 'This workflow does not exist or was deleted.',
@@ -579,6 +591,15 @@ const en: Record<keyof typeof zh, string> = {
   'import.openWorkflow': 'Open workflow',
   'import.openRun': 'View run',
   'agents.form.modelReset': 'Model cleared: it belonged to the previously selected CLI.',
+  'token.remember': 'Remember the token on this device',
+  'agents.form.namePlaceholder': 'e.g. Architect, Reviewer',
+  'runDetail.lines': '{n} lines',
+  'common.closeLabel': 'Close',
+  'import.agentDetail': '{provider}{model} · {approve}{workDir}',
+  'import.autoApprove': 'auto-approve',
+  'import.manualApprove': 'edits only',
+  'import.customCommand': 'custom command',
+  'runDetail.rerunTitle': 'Run "{name}" again',
   'settings.title': 'Settings',
   'settings.server': 'Server',
   'settings.version': 'Version',
@@ -611,7 +632,7 @@ const dictionaries: Record<Locale, Record<TKey, string>> = { 'zh-CN': zh, en }
 
 const LOCALE_KEY = 'iteam.locale'
 const detect = (): Locale => {
-  const saved = localStorage.getItem(LOCALE_KEY)
+  const saved = storage.get(LOCALE_KEY)
   if (saved === 'en' || saved === 'zh-CN') return saved
   return navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'
 }
@@ -626,11 +647,14 @@ const I18nContext = createContext<I18n | null>(null)
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(detect)
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
   const value = useMemo<I18n>(
     () => ({
       locale,
       setLocale: (l) => {
-        localStorage.setItem(LOCALE_KEY, l)
+        storage.set(LOCALE_KEY, l, true)
         setLocaleState(l)
       },
       t: (key, vars) => {

@@ -47,7 +47,7 @@ export function RunsPage() {
     void load()
     api.workflows().then(setWorkflows).catch(() => undefined)
   }, [load])
-  useSocketEvent(['run:changed', 'step:changed', 'run:deleted'], load)
+  useSocketEvent(['run:changed', 'step:changed', 'run:deleted'], load, 300)
   useReconnect(load)
 
   const visible = useMemo(() => {

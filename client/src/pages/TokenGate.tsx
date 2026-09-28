@@ -10,10 +10,11 @@ export function TokenGate() {
   const [token, setToken] = useState('')
   const [invalid, setInvalid] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [remember, setRemember] = useState(false)
 
   const submit = async () => {
     setBusy(true)
-    const ok = await submitToken(token.trim())
+    const ok = await submitToken(token.trim(), remember)
     setBusy(false)
     setInvalid(!ok)
   }
@@ -36,6 +37,9 @@ export function TokenGate() {
         <p className="text-ink-soft text-[13px] mb-5">{t('token.desc')}</p>
         <input className="input mb-3" type="password" autoFocus placeholder={t('token.placeholder')} value={token} onChange={(e) => setToken(e.target.value)} />
         {invalid && <p className="text-status-failed text-[12px] mb-3">{t('token.invalid')}</p>}
+        <label className="flex items-center gap-2 text-[12px] text-ink-soft mb-4 cursor-pointer">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> {t('token.remember')}
+        </label>
         <button className="btn-primary w-full" disabled={!token.trim() || busy} type="submit">
           {t('token.submit')}
         </button>

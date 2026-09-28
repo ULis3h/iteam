@@ -1,5 +1,6 @@
 import { config as loadEnv } from 'dotenv'
 import { existsSync, readFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -41,7 +42,8 @@ export const config = {
   runnerToken: (process.env.ITEAM_RUNNER_TOKEN || '').trim() || token,
   databaseUrl,
   maxParallel: intEnv('ITEAM_MAX_PARALLEL', 4, 1, 64),
-  defaultWorkDir: process.env.ITEAM_WORK_DIR || process.cwd(),
+  /** Where local agents run when neither the step nor the agent sets a directory (never the iTeam checkout itself). */
+  defaultWorkDir: process.env.ITEAM_WORK_DIR || os.homedir(),
   clientDist: path.resolve(serverDir, '../client/dist'),
   examplesDir: path.resolve(serverDir, '../examples'),
   /** Extra browser origins allowed to call the API (the bundled UI is same-origin and needs none). */
