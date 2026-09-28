@@ -100,7 +100,7 @@ export function evaluateCondition(expr: string, render: (template: string) => st
   const p = parsePredicate(expr, false)
   const subject = render(p.left ?? '')
   const ok = evaluatePredicate(p, subject)
-  const rhs = p.op === 'truthy' ? '' : ` ${p.op} ${p.flags || p.op.endsWith('matches') ? `/${p.value}/${p.flags}` : `'${p.value}'`}`
+  const rhs = p.op === 'truthy' ? '' : ` ${p.op} ${p.op.endsWith('matches') ? `/${p.value}/${p.flags}` : `'${p.value}'`}`
   return { ok, detail: `"${short(subject)}"${rhs} → ${ok}` }
 }
 
