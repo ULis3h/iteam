@@ -59,6 +59,18 @@ export function OverviewPage() {
     return () => clearInterval(h)
   }, [live])
 
+  const runDemo = async () => {
+    setBusy(true)
+    try {
+      const run = await api.demoRun()
+      navigate(`/runs/${run.id}`)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const quickRun = async () => {
     setBusy(true)
     try {
@@ -106,8 +118,18 @@ export function OverviewPage() {
 
       {stats && checklist.some((c) => !c.done) && (
         <Card className="p-6 mb-6 fade-in">
-          <h2 className="text-[15px] font-semibold">{t('overview.checklist.title')}</h2>
-          <p className="text-[13px] text-ink-soft mb-4">{t('overview.checklist.desc')}</p>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-[15px] font-semibold">{t('overview.checklist.title')}</h2>
+              <p className="text-[13px] text-ink-soft">{t('overview.checklist.desc')}</p>
+            </div>
+            <div className="text-right">
+              <button className="btn-primary btn-sm" disabled={busy} onClick={runDemo}>
+                <Play size={13} /> {t('overview.checklist.demo')}
+              </button>
+              <div className="text-[11px] text-ink-muted mt-1 max-w-[260px]">{t('overview.demo.hint')}</div>
+            </div>
+          </div>
           <ol className="space-y-2">
             {checklist.map((item) => (
               <li key={item.key} className="flex items-center gap-3 text-[13px]">

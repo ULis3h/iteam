@@ -97,6 +97,7 @@ export async function importWorkflow(prisma: PrismaClient, file: WorkflowFile): 
       retries: s.retries,
       continueOnError: s.continueOnError,
       workDir: s.workDir,
+      check: s.check,
     }))
 
     return tx.workflow.create({
@@ -166,6 +167,7 @@ export async function exportWorkflow(prisma: PrismaClient, workflow: Workflow, f
         retries: s.retries,
         continueOnError: s.continueOnError || undefined,
         workDir: s.workDir,
+        check: s.check,
         expectedOutput: s.expectedOutput,
         prompt: s.prompt,
       }),

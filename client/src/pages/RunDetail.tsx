@@ -26,6 +26,7 @@ export function RunDetailPage() {
   const [logStep, setLogStep] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rerunOpen, setRerunOpen] = useState(false)
+  const [drift, setDrift] = useState<'changed' | 'deleted' | null>(null)
   const [now, setNow] = useState(Date.now())
   const seen = useRef(new Set<string>())
   const pendingSteps = useRef<RunStep[]>([])
@@ -101,6 +102,21 @@ export function RunDetailPage() {
       if (p.id === id) navigate('/runs')
     }, [id, navigate]),
   )
+
+  const workflowId = run?.workflowId ?? null
+  const createdAt = run?.createdAt ?? null
+  useEffect(() => {
+    setDrift(null)
+    if (!workflowId || !createdAt) return
+    let stale = false
+    api
+      .workflow(workflowId)
+      .then((w) => !stale && setDrift(new Date(w.updatedAt).getTime() > new Date(createdAt).getTime() + 1000 ? 'changed' : null))
+      .catch((err) => !stale && setDrift(err?.status === 404 ? 'deleted' : null))
+    return () => {
+      stale = true
+    }
+  }, [workflowId, createdAt])
 
   const active = !!run && isActive(run.status)
   useEffect(() => {
@@ -211,6 +227,7 @@ export function RunDetailPage() {
 
       <ErrorBanner message={error} onClose={() => setError(null)} />
       {run.error && run.status !== 'running' && <ErrorBanner message={run.error} />}
+      {drift && <InfoBanner>{t(drift === 'changed' ? 'runDetail.drift' : 'runDetail.workflowDeleted')}</InfoBanner>}
       {awaiting && (
         <InfoBanner>
           <div className="flex flex-wrap items-center justify-between gap-2">

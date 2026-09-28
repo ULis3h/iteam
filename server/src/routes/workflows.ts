@@ -1,4 +1,7 @@
 import { Router } from 'express'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { config } from '../config.js'
 import type { AppContext } from '../context.js'
 import { stages, topologicalOrder } from '../engine/dag.js'
 import { templateIssues } from '../engine/template.js'
@@ -75,6 +78,35 @@ export function workflowRoutes(ctx: AppContext) {
         }
       }
       res.status(201).json({ workflow: serializeWorkflow(result.workflow), createdAgents: result.createdAgents, warnings: result.warnings, run: startedRun })
+    }),
+  )
+
+  /** One-click demo: import examples/demo.yaml once (demo agents, no CLI needed) and start a run. */
+  router.post(
+    '/demo',
+    asyncRoute(async (_req, res) => {
+      let content: string
+      try {
+        content = await readFile(path.join(config.examplesDir, 'demo.yaml'), 'utf8')
+      } catch {
+        throw new HttpError(404, 'the demo workflow file (examples/demo.yaml) is missing')
+      }
+      const file = parseWorkflowFile(content)
+      let workflow = await ctx.prisma.workflow.findFirst({ where: { name: file.name } })
+      if (!workflow) {
+        const result = await importWorkflow(ctx.prisma, file)
+        workflow = result.workflow
+        ctx.broadcast.all('workflow:changed', serializeWorkflow(workflow))
+        if (result.createdAgents.length) ctx.broadcast.all('agent:changed', { id: '*' })
+      }
+      let run
+      try {
+        run = await ctx.runs.createRun(workflowToDefinition(workflow), { workflowId: workflow.id })
+      } catch (err) {
+        throw new HttpError(400, (err as Error).message)
+      }
+      void ctx.runs.start(run.id)
+      res.status(201).json(serializeRun(run))
     }),
   )
 

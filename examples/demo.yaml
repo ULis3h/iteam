@@ -1,0 +1,56 @@
+# 演示流程（无需安装任何 CLI）：三个内置演示 Agent 模拟“方案 → 实现 + 测试 → 评审”
+# Demo pipeline (no CLI required): three built-in demo agents simulate design → implement + tests → review
+name: 演示：多 Agent 流水线
+description: 无需安装 CLI，用内置演示 Agent 体验流水线、路线图与实时日志。把 Agent 换成 Claude Code / Codex / Gemini 即可跑真实任务。
+
+inputs:
+  - key: feature
+    label: 功能描述
+    default: 给用户资料页增加头像上传
+    required: true
+
+agents:
+  - name: 演示·架构师
+    role: 你是资深架构师。
+    provider: demo
+  - name: 演示·开发者
+    role: 你是全栈工程师。
+    provider: demo
+    maxConcurrent: 2
+  - name: 演示·评审员
+    role: 你是严格的代码评审员。
+    provider: demo
+
+steps:
+  - id: design
+    name: 方案设计
+    agent: 演示·架构师
+    prompt: |
+      请为以下功能设计技术方案：{{inputs.feature}}
+    expectedOutput: Markdown 方案，包含改动文件清单与接口定义
+
+  - id: implement
+    name: 实现
+    agent: 演示·开发者
+    dependsOn: [design]
+    prompt: |
+      根据以下方案实现功能：
+      {{steps.design.output}}
+
+  - id: tests
+    name: 补充测试
+    agent: 演示·开发者
+    dependsOn: [design]
+    prompt: |
+      为以下方案编写测试用例：
+      {{steps.design.output}}
+
+  - id: review
+    name: 代码评审
+    agent: 演示·评审员
+    dependsOn: [implement, tests]
+    prompt: |
+      评审本次改动并给出结论。
+      实现摘要：{{steps.implement.output}}
+      测试报告：{{steps.tests.output}}
+    expectedOutput: 评审报告：问题清单 + 通过/不通过

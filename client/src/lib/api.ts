@@ -61,6 +61,7 @@ export const api = {
   createAgent: (data: AgentInput) => request<Agent>('POST', '/agents', data),
   updateAgent: (id: string, data: AgentInput) => request<Agent>('PUT', `/agents/${id}`, data),
   deleteAgent: (id: string, force = false) => request<void>('DELETE', `/agents/${id}${force ? '?force=1' : ''}`),
+  previewAgent: (data: AgentInput) => request<{ command?: string; cwd?: string; stdin?: boolean; error?: string }>('POST', '/agents/preview', data),
   agentUsage: (id: string) => request<{ workflows: Array<{ id: string; name: string }>; pendingSteps: number }>('GET', `/agents/${id}/usage`),
 
   runners: () => request<Runner[]>('GET', '/runners'),
@@ -77,6 +78,7 @@ export const api = {
   importWorkflow: (content: string, run: boolean, inputs?: Record<string, string>) =>
     request<{ workflow: Workflow; createdAgents: Array<{ id: string; name: string; defaulted: boolean }>; run: Run | null }>('POST', '/workflows/import', { content, run, inputs }),
   templates: () => request<WorkflowTemplate[]>('GET', '/templates'),
+  demoRun: () => request<Run>('POST', '/workflows/demo', {}),
   exportWorkflow: (id: string, format: 'yaml' | 'json') => request<string>('GET', `/workflows/${id}/export?format=${format}`, undefined, { raw: true }),
 
   runs: (params: { status?: string; workflowId?: string; limit?: number; before?: string } = {}) => {

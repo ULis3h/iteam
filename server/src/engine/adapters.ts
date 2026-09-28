@@ -35,6 +35,14 @@ export const PROVIDERS: ProviderSpec[] = [
     hint: 'gemini -m <model> (prompt via stdin)',
   },
   {
+    id: 'demo',
+    label: 'Demo (no CLI)',
+    bin: '',
+    models: [],
+    supportsEffort: false,
+    hint: 'Built-in simulated agent: streams events and writes a Markdown result without calling any model. For trying iTeam.',
+  },
+  {
     id: 'custom',
     label: 'Custom command',
     bin: '',
@@ -60,8 +68,11 @@ const fill = (text: string, name: string, value: string): string => text.replace
 
 const MAX_INLINE_PROMPT = 64 * 1024
 
+/** Marker command of the built-in demo provider. */
+export const DEMO_COMMAND = '@demo'
+
 /** Translate an agent runtime + prompt into a concrete process spec. */
-export function buildJob(id: string, runtime: AgentRuntime, prompt: string): JobSpec {
+export function buildJob(id: string, runtime: AgentRuntime, prompt: string, opts: { check?: string } = {}): JobSpec {
   const base = {
     id,
     stdin: prompt,
@@ -69,9 +80,13 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
     env: runtime.env,
     timeoutSec: runtime.timeoutSec,
     captureDiff: true,
+    check: opts.check?.trim() || undefined,
   }
 
   switch (runtime.provider) {
+    case 'demo':
+      // executed in-process by the demo agent (see demo-agent.ts); never spawned
+      return { ...base, cmd: DEMO_COMMAND, args: [], shell: false, useOutputFile: false, parser: 'none', captureDiff: false, check: undefined }
     case 'claude-code': {
       // stream-json (requires --verbose) gives live tool activity, the final result, cost and session id
       const args = ['-p', '--output-format', 'stream-json', '--verbose']
@@ -87,7 +102,8 @@ export function buildJob(id: string, runtime: AgentRuntime, prompt: string): Job
       const args = ['exec', '--json', '--skip-git-repo-check', '-o', '{{outputFile}}']
       if (runtime.model) args.push('-m', runtime.model)
       if (runtime.effort) args.push('-c', `model_reasoning_effort="${CODEX_EFFORT[runtime.effort]}"`)
-      args.push(runtime.autoApprove ? '--dangerously-bypass-approvals-and-sandbox' : '--full-auto')
+      // without auto-approve: sandboxed to the workspace (codex exec cannot ask interactively anyway)
+      args.push(...(runtime.autoApprove ? ['--dangerously-bypass-approvals-and-sandbox'] : ['--sandbox', 'workspace-write']))
       args.push(...runtime.extraArgs, '-')
       return { ...base, cmd: 'codex', args, shell: false, useOutputFile: true, parser: 'codex-json' }
     }

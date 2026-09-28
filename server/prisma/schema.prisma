@@ -117,6 +117,7 @@ model RunStep {
   location        String    @default("local")
   runnerId        String?
   runtime         String    @default("{}") // JSON AgentRuntime frozen at run creation (never sent to clients)
+  pid             Int?      // local child process id while running (orphan cleanup after a crash)
   sessionId       String?   // CLI session / thread id (enables follow-ups)
   costUsd         Float?
   inputTokens     Int?

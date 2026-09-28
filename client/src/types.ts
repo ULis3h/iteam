@@ -1,5 +1,5 @@
 export type Effort = 'low' | 'medium' | 'high' | 'max'
-export type Provider = 'claude-code' | 'codex' | 'gemini' | 'custom'
+export type Provider = 'claude-code' | 'codex' | 'gemini' | 'custom' | 'demo'
 export type Location = 'local' | 'remote'
 export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled'
 export type StepStatus = 'pending' | 'waiting' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
@@ -25,7 +25,7 @@ export interface SystemInfo {
   maxParallel?: number
   defaultWorkDir?: string
   platform?: string
-  capabilities?: { checkedAt: string; providers: Record<string, { available: boolean; path: string | null }> }
+  capabilities?: { checkedAt: string; providers: Record<string, { available: boolean; path: string | null; version?: string | null }> }
   activeSteps?: number
   retentionDays?: number
   runnerTokenSeparate?: boolean
@@ -97,6 +97,8 @@ export interface WorkflowStep {
   continueOnError?: boolean
   workDir?: string
   resumeSessionId?: string
+  /** Shell command that must exit 0 in the working directory for the step to succeed. */
+  check?: string
 }
 
 export interface WorkflowSettings {

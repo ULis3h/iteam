@@ -74,7 +74,10 @@ export function SettingsPage() {
                   <div key={p.id} className="flex items-center justify-between gap-3">
                     <div>
                       <span className="font-medium">{p.label}</span>
-                      <span className="text-ink-muted ml-2 mono">{p.bin}</span>
+                      <span className="text-ink-muted ml-2 mono">
+                        {p.bin}
+                        {cap?.version ? ` · ${cap.version}` : ''}
+                      </span>
                     </div>
                     <span className={`chip ${cap?.available ? '!bg-green-50 !text-status-success' : '!bg-amber-50 !text-status-cancelled'}`}>
                       {cap?.available ? t('settings.cli.available') : t('settings.cli.missing')}

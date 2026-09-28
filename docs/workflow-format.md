@@ -21,7 +21,7 @@ inputs:                           # 可选，运行时填写
 agents:                           # 可选。只在同名 Agent 不存在时用于创建
   - name: 架构师                  # 必填，与 steps[].agent 对应
     role: 你是资深架构师……         # 角色 / 系统指令
-    provider: claude-code         # claude-code | codex | gemini | custom
+    provider: claude-code         # claude-code | codex | gemini | custom | demo（内置演示）
     model: opus
     effort: high                  # low | medium | high | max
     location: local               # local | remote
@@ -48,6 +48,7 @@ steps:                            # 必填，至少一个
     retries: 1                    # 失败重试次数（0–5，指数退避）
     continueOnError: false        # 失败时不阻塞下游
     workDir: "{{inputs.repo}}"    # 覆盖工作目录，可用模板变量
+    check: npm test               # 验证命令：Agent 完成后在工作目录执行，退出码非 0 则步骤失败
 
   - id: approve                   # 人工审批步骤：不需要 agent
     name: 方案确认
@@ -104,4 +105,4 @@ steps:                            # 必填，至少一个
 
 ## English summary
 
-A workflow file has `name`, optional `description`, optional `settings` (`maxCostUsd`), optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `type` = `agent` | `approval`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`). An approval step needs no agent: the run waits until a person approves or rejects it in the UI, and the reviewer's note becomes the step output. Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.
+A workflow file has `name`, optional `description`, optional `settings` (`maxCostUsd`), optional `inputs` (`key`, `label`, `description`, `default`, `required`), optional `agents` (used only to create agents that do not exist yet: `name`, `role`, `provider`, `model`, `effort`, `location`, `runner`, `workDir`, `command`, `extraArgs`, `env`, `autoApprove`, `timeoutSec`, `maxConcurrent`) and required `steps` (`id`, `name`, `type` = `agent` | `approval`, `agent`, `prompt`, `dependsOn`, `expectedOutput`, `model`, `effort`, `timeoutSec`, `retries`, `continueOnError`, `workDir`, `check`). An approval step needs no agent: the run waits until a person approves or rejects it in the UI, and the reviewer's note becomes the step output. Prompts and `workDir` can use `{{inputs.key}}`, `{{steps.ID.output}}`, `{{steps.ID.status}}`, `{{run.name}}`, `{{workflow.name}}`. Files are validated (unique ids and input keys, existing dependencies, no cycles, template references) before import; the preview shows what each created agent will execute. Exports omit agent env values unless `includeEnv=1`.

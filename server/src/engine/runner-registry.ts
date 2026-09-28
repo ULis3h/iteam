@@ -36,6 +36,10 @@ export class RunnerRegistry {
         this.fail(jobId, job, 'runner reconnected without this job (it was lost on the runner side)')
       }
     }
+    // jobs the runner still executes for a server process that no longer exists (restart / crash)
+    for (const jobId of activeJobIds) {
+      if (!this.jobs.has(jobId)) socket.emit('job:cancel', { jobId })
+    }
     if (previous && previous.id !== socket.id) previous.disconnect(true)
   }
 

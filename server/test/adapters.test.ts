@@ -48,6 +48,19 @@ describe('buildJob', () => {
     expect(job.args).toContain('model_reasoning_effort="xhigh"')
     expect(job.args[job.args.length - 1]).toBe('-')
     expect(job.useOutputFile).toBe(true)
+    expect(job.args).toContain('--dangerously-bypass-approvals-and-sandbox')
+    const sandboxed = buildJob('j2b', { ...base, provider: 'codex', autoApprove: false }, 'p')
+    expect(sandboxed.args).not.toContain('--full-auto')
+    expect(sandboxed.args.join(' ')).toContain('--sandbox workspace-write')
+  })
+
+  it('marks demo jobs for in-process execution and carries the check command', () => {
+    const demo = buildJob('j5', { ...base, provider: 'demo' }, 'p')
+    expect(demo.cmd).toBe('@demo')
+    expect(demo.captureDiff).toBe(false)
+    const checked = buildJob('j6', { ...base, provider: 'gemini' }, 'p', { check: ' npm test ' })
+    expect(checked.check).toBe('npm test')
+    expect(buildJob('j7', { ...base, provider: 'gemini' }, 'p', { check: '  ' }).check).toBeUndefined()
   })
 
   it('builds a Gemini command with yolo mode', () => {

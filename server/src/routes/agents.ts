@@ -1,4 +1,7 @@
 import { Router } from 'express'
+import { config } from '../config.js'
+import { buildJob, DEMO_COMMAND, describeJob } from '../engine/adapters.js'
+import type { AgentRuntime, Effort, Provider } from '../engine/types.js'
 import type { AppContext } from '../context.js'
 import { availableProviderIds, detectCapabilities } from '../engine/capabilities.js'
 import type { WorkflowStep } from '../engine/types.js'
@@ -61,6 +64,7 @@ export function agentRoutes(ctx: AppContext) {
     if (!parsed.success) throw new HttpError(400, formatZodError(parsed.error))
     const data = parsed.data
     if (data.provider === 'custom' && !data.command.trim()) throw new HttpError(400, 'custom provider requires a command template')
+    if (data.provider === 'demo' && data.location === 'remote') throw new HttpError(400, 'demo agents run on the server; choose "local"')
     if (data.location === 'remote') {
       if (!data.runnerId) throw new HttpError(400, 'remote agents must be bound to a runner')
       const runner = await ctx.prisma.runner.findUnique({ where: { id: data.runnerId } })
@@ -70,6 +74,33 @@ export function agentRoutes(ctx: AppContext) {
     if (clash) throw new HttpError(409, `an agent named "${clash.name}" already exists`)
     return { ...data, runnerId: data.location === 'remote' ? data.runnerId : null, extraArgs: JSON.stringify(data.extraArgs) }
   }
+
+  /** What a (possibly unsaved) agent configuration would execute: shown live in the agent form. */
+  router.post(
+    '/preview',
+    asyncRoute(async (req, res) => {
+      const parsed = agentBodySchema.safeParse(req.body)
+      if (!parsed.success) throw new HttpError(400, formatZodError(parsed.error))
+      const a = parsed.data
+      const runtime: AgentRuntime = {
+        provider: a.provider as Provider,
+        model: a.model,
+        effort: a.effort as Effort,
+        autoApprove: a.autoApprove,
+        extraArgs: a.extraArgs,
+        command: a.command,
+        env: {},
+        workDir: a.workDir || (a.location === 'remote' ? '' : config.defaultWorkDir),
+        timeoutSec: a.timeoutSec,
+      }
+      try {
+        const job = buildJob('preview', runtime, '<prompt>')
+        res.json({ command: job.cmd === DEMO_COMMAND ? 'built-in demo agent (no process)' : describeJob(job), cwd: runtime.workDir || '(runner directory)', stdin: job.cmd !== DEMO_COMMAND })
+      } catch (err) {
+        res.json({ error: (err as Error).message })
+      }
+    }),
+  )
 
   router.post(
     '/',

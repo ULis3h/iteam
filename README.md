@@ -16,6 +16,13 @@
   <a href="./docs/api.md">API</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ULis3h/iteam/actions/workflows/ci.yml"><img src="https://github.com/ULis3h/iteam/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D20-3c873a.svg" alt="Node 20+">
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.0-111.svg" alt="v1.2.0"></a>
+</p>
+
 ---
 
 ## What it does
@@ -24,12 +31,22 @@ iTeam turns the agent CLIs you already have into a team. You define **agents** (
 
 | | |
 |---|---|
-| **Agents** | Claude Code, Codex CLI, Gemini CLI, or a custom command. Per-agent model, effort (`low / medium / high / max`), role instructions, working directory, timeout. |
+| **Agents** | Claude Code, Codex CLI, Gemini CLI, or a custom command (plus a built-in demo agent to try the product before installing anything). Per-agent model, effort (`low / medium / high / max`), role instructions, working directory, timeout; the form shows the exact command it will run. |
 | **Local or remote** | Local agents run on the server. Remote agents run on any machine that starts the lightweight runner. |
-| **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error; **approval steps** pause the run until a person approves; a **cost limit** stops runaway runs. |
+| **Workflows** | Steps form a DAG. `{{inputs.x}}` and `{{steps.id.output}}` pass data between steps. Per-step model/effort override, retries, timeout, continue-on-error; **approval steps** pause the run until a person approves; a **check command** (e.g. `npm test`) decides whether a step really succeeded; a **cost limit** stops runaway runs. |
 | **Runs** | Pipeline view, stage roadmap + timeline, live per-step logs with readable agent events (tool calls, results), cost and tokens per step, rendered prompt and output, the git diff each step produced, cancel, retry failed steps, rerun from any step, run again, follow-up prompts in the same Claude Code session; browser notifications and a webhook. |
 | **Import / export** | Workflows are plain YAML or JSON files. Built-in templates, import from the UI (agents are created from the file, preview shows what they will run), export any workflow. |
 | **Quick task** | One prompt on one agent, no workflow needed. |
+
+## Screenshots
+
+| Pipeline view of a run | Stage roadmap + timeline |
+|---|---|
+| ![Run pipeline](docs/images/run-pipeline.png) | ![Run roadmap](docs/images/run-roadmap.png) |
+
+| Workflow editor | Overview |
+|---|---|
+| ![Workflow editor](docs/images/editor.png) | ![Overview](docs/images/overview.png) |
 
 ## Quick start
 

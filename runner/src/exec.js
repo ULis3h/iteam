@@ -188,6 +188,36 @@ export function runJob(job, handlers) {
       return finish(null, err.message)
     }
 
+    /** After a successful exit, the optional check command decides whether the step really succeeded. */
+    const runCheck = () => {
+      const check = String(job.check ?? '').trim()
+      handlers.onLog('system', `$ check: ${check}`)
+      const cspec = spawnSpec(check, [], true)
+      let checker
+      try {
+        checker = spawn(cspec.file, cspec.args, { cwd, env: childEnv(job.env), shell: cspec.shell, stdio: ['ignore', 'pipe', 'pipe'], detached: !isWin })
+      } catch (e) {
+        return finish(null, `check could not start: ${e.message}`)
+      }
+      child = checker // so timeout and cancel reach the check as well
+      const cout = new LineSplitter((line) => handlers.onLog('stdout', line))
+      const cerr = new LineSplitter((line) => handlers.onLog('stderr', line))
+      checker.stdout.on('data', (c) => cout.push(c))
+      checker.stderr.on('data', (c) => cerr.push(c))
+      checker.on('error', (e) => finish(null, `check could not start: ${e.message}`))
+      checker.on('close', (ccode) => {
+        cout.flush()
+        cerr.flush()
+        if (cancelled) return finish(ccode, 'cancelled')
+        if (timedOut) return finish(ccode, `timed out after ${job.timeoutSec}s (during check)`)
+        if (ccode === 0) {
+          handlers.onLog('system', '✓ check passed')
+          return finish(0)
+        }
+        finish(ccode, `check failed (exit ${ccode}): ${check}`)
+      })
+    }
+
     const out = new LineSplitter((line) => {
       stdout.push(line)
       handlers.onLog('stdout', line)
@@ -205,6 +235,7 @@ export function runJob(job, handlers) {
     child.on('close', (code) => {
       out.flush()
       err.flush()
+      if (code === 0 && !cancelled && !timedOut && String(job.check ?? '').trim()) return runCheck()
       finish(code, cancelled ? 'cancelled' : timedOut ? `timed out after ${job.timeoutSec}s` : undefined)
     })
     child.stdin.on('error', () => undefined)

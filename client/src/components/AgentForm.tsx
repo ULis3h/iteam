@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { api } from '../lib/api'
 import { useApp } from '../lib/app'
 import { useT } from '../lib/i18n'
 import { AGENT_PRESETS, presetModel } from '../lib/presets'
@@ -54,6 +55,19 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
   const [busy, setBusy] = useState(false)
   const [timeoutText, setTimeoutText] = useState('1800')
   const [notice, setNotice] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ command?: string; cwd?: string; error?: string } | null>(null)
+
+  // live "will run" preview of the exact command this configuration produces
+  useEffect(() => {
+    if (!open) return
+    const timer = setTimeout(() => {
+      api
+        .previewAgent({ ...form, name: form.name || 'preview', extraArgs: extraArgsText.split('\n').map((l) => l.trim()).filter(Boolean) })
+        .then(setPreview)
+        .catch(() => setPreview(null))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [open, form.provider, form.model, form.effort, form.autoApprove, form.command, form.workDir, form.location, extraArgsText]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open) return
@@ -228,6 +242,18 @@ export function AgentForm({ open, agent, runners, onClose, onSubmit }: { open: b
           <Field label={t('agents.form.command')} required hint={t('agents.form.commandHint')}>
             <input className="input mono" value={form.command} onChange={(e) => update({ command: e.target.value })} placeholder={t('agents.form.commandPlaceholder')} />
           </Field>
+        )}
+        {preview && (preview.command || preview.error) && (
+          <div className="rounded-xl bg-[#f7f7f9] px-3 py-2 text-[12px]">
+            <span className="text-ink-muted">{t('agents.form.willRun')}: </span>
+            <span className={`mono break-all ${preview.error ? 'text-status-failed' : 'text-ink-soft'}`}>{preview.error ?? preview.command}</span>
+            {!preview.error && preview.cwd && (
+              <span className="text-ink-muted">
+                {' '}
+                · {t('agents.form.cwdLabel')} <span className="mono">{preview.cwd}</span>
+              </span>
+            )}
+          </div>
         )}
 
         <button type="button" className="text-[12px] text-ink-soft hover:text-ink underline underline-offset-2" onClick={() => setAdvanced((v) => !v)}>

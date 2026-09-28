@@ -16,6 +16,13 @@
   <a href="./docs/api.md">API</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/ULis3h/iteam/actions/workflows/ci.yml"><img src="https://github.com/ULis3h/iteam/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/node-%3E%3D20-3c873a.svg" alt="Node 20+">
+  <a href="./CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.0-111.svg" alt="v1.2.0"></a>
+</p>
+
 ---
 
 ## 它是什么
@@ -24,12 +31,22 @@ iTeam 把你已有的 Agent CLI 组成一个团队。你定义 **Agent**（角�
 
 | | |
 |---|---|
-| **Agent** | Claude Code、Codex CLI、Gemini CLI 或自定义命令。每个 Agent 单独设置模型、思考强度（`low / medium / high / max`）、角色指令、工作目录、超时。 |
+| **Agent** | Claude Code、Codex CLI、Gemini CLI 或自定义命令（还有一个内置演示 Agent，装 CLI 之前就能体验）。每个 Agent 单独设置模型、思考强度（`low / medium / high / max`）、角色指令、工作目录、超时；表单实时显示将执行的命令。 |
 | **本地或远程** | 本地 Agent 在服务器上执行；远程 Agent 在任何启动了 runner 的机器上执行。 |
-| **工作流** | 步骤构成 DAG。`{{inputs.x}}`、`{{steps.id.output}}` 在步骤间传递数据。支持按步骤覆盖模型/思考强度、失败重试、超时、失败不阻塞下游；**人工审批步骤**让运行停下来等你通过或驳回；**费用上限**超出即停。 |
+| **工作流** | 步骤构成 DAG。`{{inputs.x}}`、`{{steps.id.output}}` 在步骤间传递数据。支持按步骤覆盖模型/思考强度、失败重试、超时、失败不阻塞下游；**人工审批步骤**让运行停下来等你通过或驳回；**验证命令**（如 `npm test`）决定一步是否真的成功；**费用上限**超出即停。 |
 | **运行记录** | 流水线视图、阶段路线图 + 时间线、按步骤的实时日志（工具调用与结果被整理成可读事件）、每步费用与 Token、实际提示词与输出、每步的 git 变更、取消、重试失败步骤、从任一步骤重跑、重新运行，Claude Code 步骤可在同一会话里追问；浏览器通知与 Webhook。 |
 | **导入 / 导出** | 工作流就是 YAML / JSON 文件。内置模板、界面导入（缺失的 Agent 按文件定义自动创建，预览会显示它们将执行什么），任意工作流可导出。 |
 | **快速任务** | 一个 Agent、一句话，直接执行，不用先建工作流。 |
+
+## 界面预览
+
+| 运行的流水线视图 | 阶段路线图 + 时间线 |
+|---|---|
+| ![流水线](docs/images/run-pipeline.png) | ![路线图](docs/images/run-roadmap.png) |
+
+| 工作流编辑器 | 概览 |
+|---|---|
+| ![编辑器](docs/images/editor.png) | ![概览](docs/images/overview.png) |
 
 ## 快速开始
 

@@ -27,6 +27,10 @@ npm run dev        # 服务端 :3000 + 界面 :5173
 | `ITEAM_PUBLIC_URL` | Webhook 里链接使用的界面地址 | `http://localhost:PORT` |
 | `DATABASE_URL` | SQLite 文件位置 | `file:./iteam.db` |
 
+## 先看一眼演示（可选）
+
+还没装任何 CLI？打开「概览」，点 **运行演示（无需 CLI）**：内置演示 Agent 会跑一条「方案 → 实现 + 测试 → 评审」流水线，你可以立刻看到流水线图、路线图和实时日志。演示 Agent 不调用任何模型，只用来体验产品；之后把 Agent 换成真实 CLI 即可。
+
 ## 2. 准备 Agent CLI
 
 在运行 Agent 的机器上安装并登录至少一个 CLI：
@@ -38,7 +42,7 @@ npm run dev        # 服务端 :3000 + 界面 :5173
 | Gemini CLI | `gemini` | `npm i -g @google/gemini-cli` |
 | 自定义 | 任意命令 | 见 [概念 › 自定义命令](./concepts.md#自定义命令) |
 
-「设置」页会显示本机检测到的 CLI。
+「设置」页会显示本机检测到的 CLI 及其版本；新建 Agent 时表单底部会实时显示「将执行」的完整命令。
 
 ## 3. 创建第一个 Agent
 

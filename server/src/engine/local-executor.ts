@@ -132,6 +132,42 @@ export async function captureGitDiff(cwd: string): Promise<string | null> {
   return parts.join('\n\n')
 }
 
+/** Read the command line of a live process (empty when it is gone or cannot be inspected). */
+const processArgs = (pid: number): Promise<string> =>
+  new Promise((resolve) => {
+    let out = ''
+    const ps = spawn('ps', ['-o', 'args=', '-p', String(pid)], { stdio: ['ignore', 'pipe', 'ignore'] })
+    ps.stdout.on('data', (c) => (out += c.toString()))
+    ps.on('error', () => resolve(''))
+    ps.on('close', () => resolve(out.trim()))
+  })
+
+/**
+ * Kill an agent process group left behind by a previous server process (crash / kill -9).
+ * Only acts when the pid is alive and its command line still looks like the agent
+ * (`hint`), so a recycled pid never takes down an unrelated process.
+ */
+export async function killStaleProcess(pid: number, hint: string): Promise<boolean> {
+  if (isWin || !pid || pid <= 1 || !hint) return false
+  try {
+    process.kill(pid, 0)
+  } catch {
+    return false
+  }
+  const args = await processArgs(pid)
+  if (!args.includes(hint)) return false
+  try {
+    process.kill(-pid, 'SIGKILL')
+  } catch {
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      return false
+    }
+  }
+  return true
+}
+
 /** Run a job as a child process on this machine. */
 export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
   let child: ChildProcess | null = null
@@ -195,6 +231,37 @@ export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
     } catch (err) {
       return finish(null, (err as Error).message)
     }
+    handlers.onStart?.({ pid: child.pid })
+
+    /** After a successful exit, the optional check command decides whether the step really succeeded. */
+    const runCheck = () => {
+      const check = (job.check ?? '').trim()
+      handlers.onLog('system', `$ check: ${check}`)
+      const cspec = spawnSpec(check, [], true)
+      let checker: ChildProcess
+      try {
+        checker = spawn(cspec.file, cspec.args, { cwd: job.cwd, env: childEnv(job.env), shell: cspec.shell, stdio: ['ignore', 'pipe', 'pipe'], detached: !isWin })
+      } catch (e) {
+        return void finish(null, `check could not start: ${(e as Error).message}`)
+      }
+      child = checker // so timeout and cancel reach the check as well
+      const cout = new LineSplitter((line) => handlers.onLog('stdout', line))
+      const cerr = new LineSplitter((line) => handlers.onLog('stderr', line))
+      checker.stdout?.on('data', (c) => cout.push(c))
+      checker.stderr?.on('data', (c) => cerr.push(c))
+      checker.on('error', (e) => void finish(null, `check could not start: ${e.message}`))
+      checker.on('close', (ccode) => {
+        cout.flush()
+        cerr.flush()
+        if (cancelled) return void finish(ccode, 'cancelled')
+        if (timedOut) return void finish(ccode, `timed out after ${job.timeoutSec}s (during check)`)
+        if (ccode === 0) {
+          handlers.onLog('system', '✓ check passed')
+          return void finish(0)
+        }
+        void finish(ccode, `check failed (exit ${ccode}): ${check}`)
+      })
+    }
 
     const out = new LineSplitter((line) => {
       stdout.push(line)
@@ -213,6 +280,7 @@ export function runLocalJob(job: JobSpec, handlers: JobHandlers): JobHandle {
     child.on('close', (code) => {
       out.flush()
       err.flush()
+      if (code === 0 && !cancelled && !timedOut && job.check?.trim()) return runCheck()
       void finish(code, cancelled ? 'cancelled' : timedOut ? `timed out after ${job.timeoutSec}s` : undefined)
     })
 

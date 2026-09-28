@@ -466,4 +466,77 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"FINAL ANSW
     const lines = await prisma.runLog.findMany({ where: { stepId: run.steps[0].id } })
     expect(lines.some((l) => l.line.startsWith('changes in working tree: file.txt'))).toBe(true)
   })
+
+  it('runs the check command after the agent and fails the step when it exits non-zero', async () => {
+    const ws = path.join(dir, 'check-ws')
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(ws, { recursive: true })
+    const maker = await makeAgent('maker', `cat >/dev/null; echo made > out.txt; echo agent-output`, { workDir: ws })
+    const ok = await manager.createRun({ name: 'check-ok', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: maker.id, prompt: 'x', dependsOn: [], check: 'test -f out.txt' }] }, {})
+    await manager.start(ok.id)
+    const passed = await waitFor(ok.id, finished)
+    expect(passed.status).toBe('succeeded')
+    expect(passed.steps[0].output).toBe('agent-output')
+    await logs.flush()
+    const lines = (await prisma.runLog.findMany({ where: { stepId: passed.steps[0].id } })).map((l) => l.line)
+    expect(lines).toContain('$ check: test -f out.txt')
+    expect(lines).toContain('✓ check passed')
+
+    const bad = await manager.createRun({ name: 'check-bad', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: maker.id, prompt: 'x', dependsOn: [], check: 'echo nope >&2; exit 3' }] }, {})
+    await manager.start(bad.id)
+    const failed = await waitFor(bad.id, finished)
+    expect(failed.status).toBe('failed')
+    expect(failed.steps[0].error).toMatch(/check failed \(exit 3\): echo nope/)
+    expect(failed.steps[0].exitCode).toBe(3)
+    expect(failed.steps[0].output).toBe('agent-output')
+    await logs.flush()
+    const badLines = (await prisma.runLog.findMany({ where: { stepId: failed.steps[0].id } })).map((l) => l.line)
+    expect(badLines).toContain('nope')
+  })
+
+  it('runs the built-in demo provider in-process and produces a Markdown deliverable', async () => {
+    const demo = await prisma.agent.create({ data: { name: 'demo-agent', provider: 'demo', workDir: os.tmpdir(), timeoutSec: 30 } })
+    const def: WorkflowDefinition = {
+      name: 'demo',
+      description: '',
+      inputs: [],
+      steps: [
+        { id: 'plan', name: 'Plan', agentId: demo.id, prompt: '为登录功能设计技术方案', dependsOn: [] },
+        { id: 'review', name: 'Review', agentId: demo.id, prompt: 'Review this design:\n{{steps.plan.output}}', dependsOn: ['plan'] },
+      ],
+    }
+    const created = await manager.createRun(def, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished, 30000)
+    expect(run.status).toBe('succeeded')
+    expect(run.steps[0].output).toContain('## 技术方案')
+    expect(run.steps[1].output).toContain('## Review')
+    expect(run.steps[1].output).toContain('Built on the upstream output')
+    expect(manager.activeSteps()).toBe(0)
+    await logs.flush()
+    const lines = await prisma.runLog.findMany({ where: { stepId: run.steps[0].id } })
+    expect(lines.some((l) => l.stream === 'event' && l.line.startsWith('🔧'))).toBe(true)
+  }, 30000)
+
+  it('tells a retried agent what went wrong and logs why a ready step is not starting', async () => {
+    const marker = path.join(dir, 'marker-ctx')
+    const flaky = await makeAgent('flaky-ctx', `cat >/dev/null; if [ -f '${marker}' ]; then printf fixed; else touch '${marker}'; echo 'boom happened' >&2; exit 3; fi`)
+    const created = await manager.createRun({ name: 'ctx', description: '', inputs: [], steps: [{ id: 's', name: 'S', agentId: flaky.id, prompt: 'do it', dependsOn: [], retries: 1 }] }, {})
+    await manager.start(created.id)
+    const run = await waitFor(created.id, finished)
+    expect(run.status).toBe('succeeded')
+    expect(run.steps[0].attempt).toBe(2)
+    expect(run.steps[0].prompt).toContain('Previous attempt 1 failed: boom happened')
+    expect(run.steps[0].prompt).toContain('Fix the cause and complete the task.')
+
+    // two steps on a maxConcurrent=1 agent: the second one says why it waits
+    const slow = await makeAgent('slow-one', `cat >/dev/null; sleep 0.6; echo ok`, { maxConcurrent: 1 })
+    const par = await manager.createRun({ name: 'defer', description: '', inputs: [], steps: [{ id: 'a', name: 'A', agentId: slow.id, prompt: 'x', dependsOn: [] }, { id: 'b', name: 'B', agentId: slow.id, prompt: 'x', dependsOn: [] }] }, {})
+    await manager.start(par.id)
+    const done = await waitFor(par.id, finished)
+    expect(done.status).toBe('succeeded')
+    await logs.flush()
+    const all = await prisma.runLog.findMany({ where: { stepId: { in: done.steps.map((s) => s.id) } } })
+    expect(all.some((l) => l.line.startsWith('⏳ waiting for agent "slow-one" (1/1 running)'))).toBe(true)
+  })
 })

@@ -7,7 +7,7 @@ import path from 'node:path'
 import { Server as SocketIOServer } from 'socket.io'
 import { requireToken } from './auth.js'
 import type { AppContext } from './context.js'
-import { prisma } from './db.js'
+import { initDb, prisma } from './db.js'
 import { detectCapabilities } from './engine/capabilities.js'
 import { LogWriter } from './engine/log-writer.js'
 import { RunManager } from './engine/run-manager.js'
@@ -79,6 +79,7 @@ async function pruneOldRuns(days: number): Promise<number> {
 }
 
 async function boot() {
+  await initDb()
   // Runner status lives in memory; anything still marked online is stale after a restart.
   await prisma.runner.updateMany({ where: { status: 'online' }, data: { status: 'offline' } })
 

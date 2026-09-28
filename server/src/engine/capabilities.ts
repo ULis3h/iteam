@@ -11,9 +11,32 @@ const which = (bin: string): Promise<string | null> =>
     child.on('close', (code) => resolve(code === 0 ? out.trim().split('\n')[0] : null))
   })
 
+const version = (bin: string): Promise<string | null> =>
+  new Promise((resolve) => {
+    let out = ''
+    let child
+    try {
+      child = spawn(bin, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' })
+    } catch {
+      return resolve(null)
+    }
+    const timer = setTimeout(() => child.kill('SIGKILL'), 8000)
+    child.stdout.on('data', (c) => (out += c.toString()))
+    child.stderr.on('data', (c) => (out += c.toString()))
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    child.on('close', () => {
+      clearTimeout(timer)
+      const line = out.trim().split('\n').find((l) => /\d+\.\d+/.test(l)) ?? out.trim().split('\n')[0]
+      resolve(line ? line.trim().slice(0, 80) : null)
+    })
+  })
+
 export interface Capabilities {
   checkedAt: string
-  providers: Record<string, { available: boolean; path: string | null }>
+  providers: Record<string, { available: boolean; path: string | null; version?: string | null }>
 }
 
 let cached: Capabilities | null = null
@@ -22,14 +45,16 @@ let cached: Capabilities | null = null
 export async function detectCapabilities(force = false): Promise<Capabilities> {
   if (cached && !force) return cached
   const providers: Capabilities['providers'] = {}
-  for (const p of PROVIDERS) {
-    if (!p.bin) {
-      providers[p.id] = { available: true, path: null }
-      continue
-    }
-    const found = await which(p.bin)
-    providers[p.id] = { available: !!found, path: found }
-  }
+  await Promise.all(
+    PROVIDERS.map(async (p) => {
+      if (!p.bin) {
+        providers[p.id] = { available: true, path: null }
+        return
+      }
+      const found = await which(p.bin)
+      providers[p.id] = { available: !!found, path: found, version: found ? await version(p.bin) : null }
+    }),
+  )
   cached = { checkedAt: new Date().toISOString(), providers }
   return cached
 }

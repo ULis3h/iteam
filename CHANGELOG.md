@@ -11,6 +11,16 @@ All notable changes to iTeam are recorded here. The format follows [Keep a Chang
 - **Working-tree diff** captured per step (local and remote) and shown in the step detail.
 - **Notifications**: opt-in browser notifications and an optional webhook (`ITEAM_WEBHOOK_URL`, `ITEAM_PUBLIC_URL`) for finished / waiting runs.
 - First-run checklist on the overview (CLI detected → agent → workflow → run); `waiting` filter on the runs page; `release-gate` example.
+- Built-in **demo provider** and one-click demo run (`POST /workflows/demo`, `examples/demo.yaml`): try the pipeline, roadmap and live logs before installing any CLI.
+- Per-step **check command** (`check: npm test`): runs in the working directory after the agent; a non-zero exit fails the step.
+- Retried prompts include the previous failure and output tail; steps log why they are waiting for capacity.
+- Orphaned local agent processes are killed when the server restarts after a crash; runners cancel jobs the server no longer knows.
+- CLI versions in Settings; live "will run" command preview in the agent form (`POST /agents/preview`); note on the run page when its workflow changed or was deleted.
+- SQLite runs in WAL mode with a busy timeout.
+
+### Changed
+- Codex agents without auto-approve now run with `--sandbox workspace-write` instead of `--full-auto`.
+- Package versions are aligned with the changelog (1.2.0).
 
 ## [1.1.0] - 2026-09-28
 

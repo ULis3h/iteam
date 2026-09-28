@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto'
 import { config } from '../config.js'
 import { parseJson } from '../db.js'
 import { log } from '../logger.js'
-import { buildJob } from './adapters.js'
+import { buildJob, DEMO_COMMAND, PROVIDERS } from './adapters.js'
 import { topologicalOrder } from './dag.js'
-import { runLocalJob } from './local-executor.js'
+import { runDemoJob } from './demo-agent.js'
+import { killStaleProcess, runLocalJob } from './local-executor.js'
 import type { LogWriter } from './log-writer.js'
 import { notifyRun } from './notifier.js'
 import { createParser, type ParserKind, type StepUsage } from './parsers.js'
@@ -101,6 +102,7 @@ export class RunManager {
   private runningByAgent = new Map<string, number>()
   private waiting = new Set<string>() // runs with ready steps deferred by capacity
   private retryAfter = new Map<string, number>()
+  private deferNotes = new Map<string, string>() // stepId -> last logged reason for not starting
   private locks = new Map<string, Promise<void>>()
   private closed = false
 
@@ -309,9 +311,18 @@ export class RunManager {
 
   /** Called once at boot: anything left "running" by a previous process cannot be resumed. */
   async recover() {
+    // agent processes that outlived a crashed server would keep editing files and could be duplicated by a retry
+    const orphans = await this.prisma.runStep.findMany({ where: { status: 'running', location: 'local', pid: { not: null } }, select: { id: true, pid: true, runtime: true } })
+    let killed = 0
+    for (const s of orphans) {
+      const rt = parseJson<Partial<StepRuntime> | null>(s.runtime, null)
+      const hint = rt?.provider === 'custom' ? (rt.command?.trim().split(/\s+/)[0] ?? '') : (PROVIDERS.find((p) => p.id === rt?.provider)?.bin ?? '')
+      if (s.pid && (await killStaleProcess(s.pid, hint))) killed++
+    }
+    if (killed) log.warn(`killed ${killed} orphaned agent process(es) from a previous server`)
     const stale = await this.prisma.runStep.updateMany({
       where: { status: 'running' },
-      data: { status: 'failed', error: 'server restarted while the step was running', finishedAt: new Date() },
+      data: { status: 'failed', error: 'server restarted while the step was running', finishedAt: new Date(), pid: null },
     })
     const runs = await this.prisma.run.updateMany({
       where: { status: 'running' },
@@ -383,16 +394,19 @@ export class RunManager {
         }
         if (this.slots() >= config.maxParallel) {
           deferred = true
+          await this.noteDeferral(run, step, `waiting for a free slot (${this.slots()}/${config.maxParallel} steps running)`)
           break
         }
         const runtime = this.runtimeOf(step)
         const agentKey = runtime?.agentId ?? step.agentId
         if (agentKey && (this.runningByAgent.get(agentKey) ?? 0) >= (runtime?.maxConcurrent ?? 1)) {
           deferred = true
+          await this.noteDeferral(run, step, `waiting for agent "${runtime?.agentName ?? step.agentName}" (${this.runningByAgent.get(agentKey)}/${runtime?.maxConcurrent ?? 1} running)`)
           continue
         }
         if (runtime?.location === 'remote' && this.registry.isOnline(runtime.runnerId) && !this.registry.hasCapacity(runtime.runnerId)) {
           deferred = true // the runner is busy; try again when a job finishes
+          await this.noteDeferral(run, step, 'waiting for the runner (at capacity)')
           continue
         }
 
@@ -427,6 +441,14 @@ export class RunManager {
         if (status === 'waiting') void notifyRun('waiting', updated)
       }
     })
+  }
+
+  /** Explain once (per reason) why a ready step is not starting, so a stalled pipeline is never silent. */
+  private async noteDeferral(run: Run, step: RunStep, reason: string) {
+    if (this.deferNotes.get(step.id) === reason) return
+    this.deferNotes.set(step.id, reason)
+    await this.logs.prime(step.id)
+    this.logs.write(run.id, step.id, 'system', `⏳ ${reason}`)
   }
 
   private definitionOf(run: Run): WorkflowDefinition {
@@ -492,12 +514,18 @@ export class RunManager {
     if (runtime.role.trim() && !runtime.resumeSessionId) parts.push(runtime.role.trim(), '---')
     parts.push(rendered.text.trim())
     if (stepDef.expectedOutput?.trim()) parts.push('---', `Expected output:\n${stepDef.expectedOutput.trim()}`)
+    // a retry that repeats the identical prompt tends to repeat the identical failure
+    const previousFailure = step.attempt > 0 && step.error ? step.error : null
+    if (previousFailure) {
+      const tail = (step.output ?? '').trim().slice(-1500)
+      parts.push('---', `Previous attempt ${step.attempt} failed: ${previousFailure}${tail ? `\nIts last output was:\n${tail}` : ''}\nFix the cause and complete the task.`)
+    }
     const prompt = parts.join('\n\n')
 
     const jobId = randomUUID()
     let job
     try {
-      job = buildJob(jobId, runtime, prompt)
+      job = buildJob(jobId, runtime, prompt, { check: stepDef.check })
     } catch (err) {
       return this.failStep(run, step, (err as Error).message, false)
     }
@@ -524,8 +552,11 @@ export class RunManager {
     await this.logs.prime(step.id)
     const write = (stream: LogStream, line: string) => this.logs.write(run.id, step.id, stream, line)
     write('system', `▶ attempt ${attempt}/${step.maxAttempts} · agent ${runtime.agentName} · ${runtime.provider}${runtime.model ? ` / ${runtime.model}` : ''} · effort ${runtime.effort}${runtime.resumeSessionId ? ` · resume ${runtime.resumeSessionId.slice(0, 8)}` : ''}`)
-    if (!runtime.autoApprove) write('system', 'auto-approve is off: in headless mode the CLI denies tool calls it cannot ask about (file edits stay allowed)')
+    if (!runtime.autoApprove && runtime.provider !== 'demo') write('system', 'auto-approve is off: in headless mode the CLI denies tool calls it cannot ask about (file edits stay allowed)')
     if (rendered.missing.length) write('system', `warning: unresolved template variables: ${rendered.missing.join(', ')}`)
+    if (previousFailure) write('system', 'the prompt includes the previous failure')
+    if (job.check) write('system', `check after completion: ${job.check}`)
+    this.deferNotes.delete(step.id)
 
     // Register the job before dispatching so an immediate completion cannot be mistaken for a stale one.
     const entry: ActiveJob = { jobId, runId: run.id, agentId: runtime.agentId, handle: null }
@@ -545,8 +576,11 @@ export class RunManager {
         write(stream, line)
       },
       onDone: (result: JobResult) => void this.onStepDone(run.id, step.id, jobId, result, parser?.result() ?? {}, job.parser),
+      onStart: ({ pid }: { pid?: number }) => {
+        if (pid) void this.prisma.runStep.updateMany({ where: { id: step.id, status: 'running' }, data: { pid } }).catch(() => undefined)
+      },
     }
-    entry.handle = runtime.location === 'remote' ? this.registry.dispatch(runtime.runnerId as string, job, handlers) : runLocalJob(job, handlers)
+    entry.handle = job.cmd === DEMO_COMMAND ? runDemoJob(job, handlers) : runtime.location === 'remote' ? this.registry.dispatch(runtime.runnerId as string, job, handlers) : runLocalJob(job, handlers)
     return updated
   }
 
@@ -601,6 +635,7 @@ export class RunManager {
       const failure = result.error ?? (usage.isError ? (usage.errorMessage ?? 'agent reported an error') : undefined)
       const success = result.exitCode === 0 && !result.cancelled && !result.timedOut && !usage.isError
       const meta = {
+        pid: null,
         sessionId: usage.sessionId ?? step.sessionId,
         costUsd: usage.costUsd ?? step.costUsd,
         inputTokens: usage.inputTokens ?? step.inputTokens,
@@ -684,6 +719,7 @@ export class RunManager {
     this.waiting.delete(runId)
     for (const s of steps) {
       this.retryAfter.delete(s.id)
+      this.deferNotes.delete(s.id)
       this.logs.forget(s.id)
     }
     this.events.run(updated)

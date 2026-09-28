@@ -132,7 +132,7 @@ export function WorkflowEditorPage() {
         steps: def.steps.map((s) =>
           s.type === 'approval'
             ? { id: s.id, name: s.name.trim() || s.id, type: 'approval' as const, agentId: '', prompt: s.prompt, dependsOn: s.dependsOn, continueOnError: s.continueOnError || undefined }
-            : { ...s, type: undefined, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined },
+            : { ...s, type: undefined, name: s.name.trim() || s.id, model: s.model || undefined, effort: s.effort || undefined, expectedOutput: s.expectedOutput?.trim() || undefined, check: s.check?.trim() || undefined },
         ),
       }
       const saved = id ? await api.updateWorkflow(id, payload) : await api.createWorkflow(payload)
@@ -364,7 +364,7 @@ function StepCard({
 }) {
   const { t } = useT()
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir))
+  const [advanced, setAdvanced] = useState(!!(step.timeoutSec || step.retries || step.continueOnError || step.model || step.effort || step.workDir || step.check))
   const agent = agents.find((a) => a.id === step.agentId)
   const approval = step.type === 'approval'
   const others = steps.filter((s) => s.id !== step.id)
@@ -532,6 +532,11 @@ function StepCard({
               </div>
               <div className="col-span-2 md:col-span-1 pb-2">
                 <Toggle checked={!!step.continueOnError} onChange={(v) => onChange({ continueOnError: v })} label={t('editor.step.continueOnError')} />
+              </div>
+              <div className="col-span-2 md:col-span-4">
+                <Field label={t('editor.step.check')} hint={t('editor.step.checkPlaceholder')}>
+                  <input className="input mono" placeholder="npm test" value={step.check ?? ''} onChange={(e) => onChange({ check: e.target.value || undefined })} />
+                </Field>
               </div>
             </div>
           )}

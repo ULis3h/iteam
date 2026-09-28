@@ -31,6 +31,7 @@ export const stepFieldsSchema = z.object({
   continueOnError: z.boolean().optional(),
   workDir: z.string().max(1024).optional(),
   resumeSessionId: z.string().optional(),
+  check: z.string().trim().max(2000).optional(),
 })
 
 const agentRequired = (s: { type?: string; agentId?: string; agent?: string }) => s.type === 'approval' || !!(s.agentId ?? s.agent)

@@ -9,7 +9,7 @@ Base URL: `http://localhost:3000/api`。所有响应为 JSON。
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/health` | 健康检查 |
-| GET | `/system` | 版本、是否需要令牌、提供方列表；带有效令牌时还返回监听地址、并行上限、默认目录、本机 CLI 检测（`?refresh=1` 重新检测） |
+| GET | `/system` | 版本、是否需要令牌、提供方列表；带有效令牌时还返回监听地址、并行上限、默认目录、本机 CLI 检测（路径与版本；`?refresh=1` 重新检测） |
 | POST | `/auth/verify` | 验证令牌（200 / 401） |
 | GET | `/stats` | 概览计数 |
 | GET | `/templates` | 内置模板（`examples/` 下的文件，含内容） |
@@ -22,6 +22,7 @@ Base URL: `http://localhost:3000/api`。所有响应为 JSON。
 | POST | `/agents` | 创建 |
 | GET / PUT / DELETE | `/agents/:id` | 详情 / 更新 / 删除。删除被工作流引用的 Agent 返回 409，加 `?force=1` 强制 |
 | GET | `/agents/:id/usage` | 引用该 Agent 的工作流与待执行步骤数 |
+| POST | `/agents/preview` | 传入 Agent 字段，返回它将执行的命令 `{ command, cwd }`（不保存） |
 
 Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` `provider`(claude-code\|codex\|gemini\|custom) `model` `effort`(low\|medium\|high\|max) `workDir` `command` `extraArgs[]` `env{}` `autoApprove` `timeoutSec` `maxConcurrent`。
 
@@ -46,6 +47,7 @@ Agent 字段：`name` `description` `role` `location`(local\|remote) `runnerId` 
 | POST | `/workflows/import` | `{ content, run?, inputs?, name? }` 导入（事务），可立即运行；返回 `createdAgents`、`warnings` |
 | GET | `/workflows/:id/export?format=yaml\|json&includeEnv=1` | 导出（默认不含 Agent 环境变量） |
 | POST | `/workflows/:id/run` | `{ inputs?, name? }` 开始运行 |
+| POST | `/workflows/demo` | 导入（一次）并运行 `examples/demo.yaml`：内置演示 Agent，无需 CLI |
 
 ## 运行
 

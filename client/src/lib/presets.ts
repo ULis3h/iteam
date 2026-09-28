@@ -25,6 +25,7 @@ const TIER_MODELS: Record<Provider, Record<ModelTier, string>> = {
   'claude-code': { strong: 'opus', balanced: 'sonnet', fast: 'haiku' },
   codex: { strong: 'gpt-5-codex', balanced: 'gpt-5-codex', fast: 'gpt-5' },
   gemini: { strong: 'gemini-2.5-pro', balanced: 'gemini-2.5-pro', fast: 'gemini-2.5-flash' },
+  demo: { strong: '', balanced: '', fast: '' },
   custom: { strong: '', balanced: '', fast: '' },
 }
 

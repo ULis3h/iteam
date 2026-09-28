@@ -1,9 +1,9 @@
 export type Effort = 'low' | 'medium' | 'high' | 'max'
-export type Provider = 'claude-code' | 'codex' | 'gemini' | 'custom'
+export type Provider = 'claude-code' | 'codex' | 'gemini' | 'custom' | 'demo'
 export type Location = 'local' | 'remote'
 
 export const EFFORTS: Effort[] = ['low', 'medium', 'high', 'max']
-export const PROVIDER_IDS: Provider[] = ['claude-code', 'codex', 'gemini', 'custom']
+export const PROVIDER_IDS: Provider[] = ['claude-code', 'codex', 'gemini', 'custom', 'demo']
 
 export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled'
 export type StepStatus = 'pending' | 'waiting' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
@@ -39,6 +39,8 @@ export interface JobSpec {
   parser: 'none' | 'claude-stream-json' | 'codex-json'
   /** Record `git diff` of the working tree after the job finishes. */
   captureDiff?: boolean
+  /** Shell command run in cwd after a successful exit; a non-zero exit fails the step. */
+  check?: string
 }
 
 export interface JobResult {
@@ -58,6 +60,8 @@ export type LogStream = 'stdout' | 'stderr' | 'system' | 'event'
 export interface JobHandlers {
   onLog: (stream: LogStream, line: string) => void
   onDone: (result: JobResult) => void
+  /** The process started (local jobs only); lets the server clean up orphans after a crash. */
+  onStart?: (info: { pid?: number }) => void
 }
 
 export interface JobHandle {
@@ -95,6 +99,8 @@ export interface WorkflowStep {
   workDir?: string
   /** Follow-up steps continue an earlier CLI session instead of starting fresh. */
   resumeSessionId?: string
+  /** Shell command that must exit 0 (in the step's working directory) for the step to count as succeeded. */
+  check?: string
 }
 
 export interface WorkflowSettings {

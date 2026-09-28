@@ -40,11 +40,12 @@ export const serializeWorkflow = (w: Workflow & { _count?: { runs: number } }) =
   ...w,
   inputs: parseJson(w.inputs, []),
   steps: parseJson(w.steps, []),
+  settings: parseJson(w.settings, {}),
 })
 
 /** The frozen runtime (which may contain env secrets) never leaves the server. */
 export const serializeStep = (s: RunStep) => {
-  const { runtime: _runtime, ...rest } = s
+  const { runtime: _runtime, pid: _pid, ...rest } = s
   return { ...rest, dependsOn: parseJson<string[]>(s.dependsOn, []) }
 }
 

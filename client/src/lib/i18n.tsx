@@ -346,6 +346,14 @@ const zh = {
   'overview.checklist.workflow': '创建或导入一个工作流',
   'overview.checklist.run': '运行一次并查看流水线',
   'overview.checklist.check': '去检测',
+  'agents.form.willRun': '将执行',
+  'agents.form.cwdLabel': '目录',
+  'editor.step.check': '验证命令',
+  'editor.step.checkPlaceholder': '例如 npm test —— Agent 完成后在工作目录执行，退出码非 0 则步骤失败（会触发重试）',
+  'overview.checklist.demo': '运行演示（无需 CLI）',
+  'overview.demo.hint': '用内置演示 Agent 跑一条流水线，一分钟看懂 iTeam。',
+  'runDetail.drift': '工作流在此运行之后被修改过。「重新运行」使用本次冻结的定义；要用新定义，请从工作流页运行。',
+  'runDetail.workflowDeleted': '该工作流已被删除；「重新运行」仍使用本次冻结的定义。',
 }
 
 const en: Record<keyof typeof zh, string> = {
@@ -691,6 +699,14 @@ const en: Record<keyof typeof zh, string> = {
   'overview.checklist.workflow': 'Create or import a workflow',
   'overview.checklist.run': 'Run it and watch the pipeline',
   'overview.checklist.check': 'Check',
+  'agents.form.willRun': 'Will run',
+  'agents.form.cwdLabel': 'in',
+  'editor.step.check': 'Check command',
+  'editor.step.checkPlaceholder': 'e.g. npm test — runs in the working directory after the agent; a non-zero exit fails the step (and triggers retries)',
+  'overview.checklist.demo': 'Run the demo (no CLI needed)',
+  'overview.demo.hint': 'Run a pipeline with built-in demo agents and see how iTeam works in a minute.',
+  'runDetail.drift': 'The workflow changed after this run. “Run again” uses the frozen definition of this run; start from the workflow page to use the new one.',
+  'runDetail.workflowDeleted': 'The workflow was deleted; “Run again” still uses this run’s frozen definition.',
 }
 
 export type TKey = keyof typeof zh
