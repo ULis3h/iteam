@@ -13,7 +13,8 @@
   <a href="./docs/concepts.md">核心概念</a> ·
   <a href="./docs/workflow-format.md">工作流文件格式</a> ·
   <a href="./docs/runner.md">远程 Runner</a> ·
-  <a href="./docs/api.md">API</a>
+  <a href="./docs/api.md">API</a> ·
+  <a href="./docs/roadmap.md">路线图</a>
 </p>
 
 <p align="center">

@@ -13,7 +13,8 @@
   <a href="./docs/concepts.md">Concepts</a> ·
   <a href="./docs/workflow-format.md">Workflow format</a> ·
   <a href="./docs/runner.md">Remote runners</a> ·
-  <a href="./docs/api.md">API</a>
+  <a href="./docs/api.md">API</a> ·
+  <a href="./docs/roadmap.md">Roadmap</a>
 </p>
 
 <p align="center">
