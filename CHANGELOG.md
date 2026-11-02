@@ -5,6 +5,7 @@ All notable changes to iTeam are recorded here. The format follows [Keep a Chang
 ## [Unreleased]
 
 ### Fixed
+- Generate the Docker Prisma client against the runtime OpenSSL ABI so fresh containers can start.
 - Use built-in runner test discovery so the test suite also runs on Node.js 20.
 - Enforce per-agent concurrency limits across simultaneously started runs, and release reserved capacity when a step fails to start.
 

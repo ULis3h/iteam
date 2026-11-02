@@ -1,5 +1,8 @@
 # ---- build stage -----------------------------------------------------------
 FROM node:22-bookworm-slim AS build
+# Prisma must detect the same OpenSSL ABI during generation and at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY server/package.json server/
