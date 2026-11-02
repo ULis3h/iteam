@@ -2,6 +2,11 @@
 
 All notable changes to iTeam are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Enforce per-agent concurrency limits across simultaneously started runs, and release reserved capacity when a step fails to start.
+
 ## [1.2.0] - 2026-09-28
 
 ### Added
