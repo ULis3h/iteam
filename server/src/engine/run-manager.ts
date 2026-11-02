@@ -99,6 +99,7 @@ export const descendantsOf = (steps: Array<{ id: string; dependsOn: string[] }>,
 export class RunManager {
   private active = new Map<string, ActiveJob>() // stepId -> job in flight
   private stopping = new Map<string, string>() // stepId -> jobId being killed
+  private reservedByAgent = new Map<string, number>()
   private reserved = 0
   private runningByAgent = new Map<string, number>()
   private waiting = new Set<string>() // runs with ready steps deferred by capacity
@@ -418,14 +419,17 @@ export class RunManager {
         }
         if (this.slots() >= config.maxParallel) {
           deferred = true
+          this.waiting.add(runId) // Register before logging yields, so a released slot cannot miss us.
           await this.noteDeferral(run, step, `waiting for a free slot (${this.slots()}/${config.maxParallel} steps running)`)
           break
         }
         const runtime = this.runtimeOf(step)
         const agentKey = runtime?.agentId ?? step.agentId
-        if (agentKey && (this.runningByAgent.get(agentKey) ?? 0) >= (runtime?.maxConcurrent ?? 1)) {
+        const agentSlots = agentKey ? this.runningCount(agentKey) + (this.reservedByAgent.get(agentKey) ?? 0) : 0
+        if (agentKey && agentSlots >= (runtime?.maxConcurrent ?? 1)) {
           deferred = true
-          await this.noteDeferral(run, step, `waiting for agent "${runtime?.agentName ?? step.agentName}" (${this.runningByAgent.get(agentKey)}/${runtime?.maxConcurrent ?? 1} running)`)
+          this.waiting.add(runId) // Register before logging yields, so a released slot cannot miss us.
+          await this.noteDeferral(run, step, `waiting for agent "${runtime?.agentName ?? step.agentName}" (${agentSlots}/${runtime?.maxConcurrent ?? 1} running)`)
           continue
         }
         if (runtime?.location === 'remote' && this.registry.isOnline(runtime.runnerId) && !this.registry.hasCapacity(runtime.runnerId)) {
@@ -434,7 +438,9 @@ export class RunManager {
           continue
         }
 
+        // Run locks are per-run, so reserve both limits before startStep can yield.
         this.reserved++
+        if (agentKey) this.reservedByAgent.set(agentKey, (this.reservedByAgent.get(agentKey) ?? 0) + 1)
         let started: RunStep
         try {
           started = await this.startStep(run, step, byKey, runtime, def)
@@ -442,6 +448,13 @@ export class RunManager {
           started = await this.failStep(run, step, `internal error: ${(err as Error).message}`, false)
         } finally {
           this.reserved--
+          if (agentKey) {
+            const remaining = (this.reservedByAgent.get(agentKey) ?? 1) - 1
+            if (remaining) this.reservedByAgent.set(agentKey, remaining)
+            else this.reservedByAgent.delete(agentKey)
+          }
+          // A failed startup has no completion callback to wake capacity waiters.
+          if (!this.active.has(step.id)) void this.tickWaiting()
         }
         byKey.set(step.key, started)
       }
@@ -604,7 +617,16 @@ export class RunManager {
         if (pid) void this.prisma.runStep.updateMany({ where: { id: step.id, status: 'running' }, data: { pid } }).catch(() => undefined)
       },
     }
-    entry.handle = job.cmd === DEMO_COMMAND ? runDemoJob(job, handlers) : runtime.location === 'remote' ? this.registry.dispatch(runtime.runnerId as string, job, handlers) : runLocalJob(job, handlers)
+    try {
+      entry.handle = job.cmd === DEMO_COMMAND ? runDemoJob(job, handlers) : runtime.location === 'remote' ? this.registry.dispatch(runtime.runnerId as string, job, handlers) : runLocalJob(job, handlers)
+    } catch (err) {
+      // Dispatch may throw after registration; do not strand an active slot.
+      if (this.active.get(step.id) === entry) {
+        this.active.delete(step.id)
+        this.runningByAgent.set(entry.agentId, Math.max(0, this.runningCount(entry.agentId) - 1))
+      }
+      throw err
+    }
     return updated
   }
 
